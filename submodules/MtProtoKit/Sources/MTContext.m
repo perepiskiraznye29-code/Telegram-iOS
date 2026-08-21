@@ -647,31 +647,6 @@ static void copyKeychainDictionaryKey(NSString * _Nonnull group, NSString * _Non
                         }
                     }
                 }
-            } else {
-                /*for (NSNumber *nMedia in @[@false, @true]) {
-                    for (NSNumber *nIsProxy in @[@false, @true]) {
-                        MTDatacenterAddress *address = [self transportSchemeForDatacenterWithId:datacenterId media:[nMedia boolValue] isProxy:[nIsProxy boolValue]].address;
-                        bool matches = false;
-                        if (address != nil) {
-                            for (MTDatacenterAddress *listAddress in addressSet.addressList) {
-                                if ([listAddress.ip isEqualToString:address.ip]) {
-                                    if (listAddress.secret != nil && address.secret != nil && [listAddress.secret isEqualToData:address.secret]) {
-                                        matches = true;
-                                    } else if (listAddress.secret == nil && address.secret == nil) {
-                                        matches = true;
-                                    }
-                                }
-                            }
-                        }
-                        if (!matches) {
-                            if (MTLogEnabled()) {
-                                MTLog(@"[MTContext#%x: updated address set for %d doesn't contain current %@, updating]", (int)self, datacenterId, address);
-                            }
-                            
-                            [self updateTransportSchemeForDatacenterWithId:datacenterId transportScheme:[self defaultTransportSchemeForDatacenterWithId:datacenterId media:[nMedia boolValue] isProxy:[nIsProxy boolValue]] media:[nMedia boolValue] isProxy:[nIsProxy boolValue]];
-                        }
-                    }
-                }*/
             }
             
             if (updateSchemes) {
@@ -1095,12 +1070,27 @@ static void copyKeychainDictionaryKey(NSString * _Nonnull group, NSString * _Non
 }
     
 - (NSArray<NSDictionary *> *)publicKeysForDatacenterWithId:(NSInteger)datacenterId {
-    __block NSArray<NSDictionary *> *result = nil;
-    [[MTContext contextQueue] dispatchOnQueue:^{
-        result = _datacenterPublicKeysById[@(datacenterId)];
-    } synchronous:true];
-    
-    return result;
+    static NSArray<NSDictionary *> *staticCustomKeys = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSString *serverPubKey = @"-----BEGIN PUBLIC KEY-----\n"
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA51YKn8z7Ajz8P7P4fppI\n"
+        "sVe/KSL787NZYXC56A/ECWLzIBwLkQfedL8KgMDYTWek7RC66hDfvTEf5N6Rv2Rl\n"
+        "Xt3wZ/xmR16K9TKu8qO3x5UkAFdLzniZjnj17rsH/1L9cv/ktDp91GaeF5MPqrFY\n"
+        "3sopue7icVtwa2f5J8THTQs5Fw0GYooEFmmVwg7eTs8clpZKya3SyigSmJTfCTYI\n"
+        "nPIoRE8u7XCzM9CQ6PS4/x6HADTIIcDymYypda3Lj8BsrT+z2gxDzS70CO/NaLGh\n"
+        "8C/mIMD0MBp/q/GiE3MAhIFW1vOq64/YI/c9Ylh22m6i8glsqa1DxgTDvVCdzjg2\n"
+        "ZQIDAQAB\n"
+        "-----END PUBLIC KEY-----";
+        
+        staticCustomKeys = @[
+            @{
+                @"fingerprint": @(0x5de8416d8a39a738LL),
+                @"key": serverPubKey
+            }
+        ];
+    });
+    return staticCustomKeys;
 }
     
 - (void)updatePublicKeysForDatacenterWithId:(NSInteger)datacenterId publicKeys:(NSArray<NSDictionary *> *)publicKeys {
