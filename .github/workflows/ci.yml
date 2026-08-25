@@ -37,8 +37,9 @@ jobs:
 
           cd $SOURCE_DIR
 
-          # Удаляем папку с иконкой нового формата, чтобы actool не выдавал ошибку
-          rm -rf Telegram/Telegram-iOS/Telegram.icon
+          # Создаем структуру для Telegram.icon, чтобы glob в BUILD-файле не падал
+          mkdir -p Telegram/Telegram-iOS/Telegram.icon
+          echo '{"info": {"author": "xcode", "version": 1}}' > Telegram/Telegram-iOS/Telegram.icon/Contents.json
 
           # Отключаем проверку версии Xcode для Icon Composer в rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
