@@ -27,8 +27,8 @@ jobs:
           sudo mkdir -p /Users/Shared
           cp -R $GITHUB_WORKSPACE /Users/Shared/
           mv /Users/Shared/$(basename $GITHUB_WORKSPACE) /Users/Shared/telegram-ios
-     
-            - name: Build the App
+
+      - name: Build the App
         run: |
           set -x
 
@@ -37,7 +37,7 @@ jobs:
 
           cd $SOURCE_DIR
 
-          # Создаем пустую папку Telegram.icon, чтобы glob() в BUILD не падал с ошибкой
+          # Создаем пустую папку Telegram.icon, чтобы glob() не падал
           mkdir -p Telegram/Telegram-iOS/Telegram.icon
           touch Telegram/Telegram-iOS/Telegram.icon/.keep
 
@@ -72,8 +72,6 @@ jobs:
           mkdir -p build/DSYMs
           find bazel-out/ -name "*.dSYM" -exec cp -R {} build/DSYMs/ \; 2>/dev/null || true
           zip -r "./$OUTPUT_PATH/Telegram.DSYMs.zip" build/DSYMs 1>/dev/null || true
-
-
 
       - name: Upload IPA as Artifact (Backup)
         uses: actions/upload-artifact@v4
