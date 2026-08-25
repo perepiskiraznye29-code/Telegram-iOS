@@ -37,11 +37,13 @@ jobs:
 
           cd $SOURCE_DIR
 
-          # Создаем пустую папку Telegram.icon, чтобы glob() не падал
-          mkdir -p Telegram/Telegram-iOS/Telegram.icon
-          touch Telegram/Telegram-iOS/Telegram.icon/.keep
+          # 1. Восстанавливаем оригинальный Telegram.icon из репозитория
+          git checkout Telegram/Telegram-iOS/Telegram.icon || true
 
-          # Отключаем проверку версии Xcode для Icon Composer в rules_apple
+          # 2. Убираем ссылку на Telegram.icon из BUILD-файла, чтобы actool не падал на несовместимом формате
+          find Telegram -name "BUILD" -exec sed -i '' 's/"Telegram.icon"//g' {} + 2>/dev/null || true
+
+          # 3. Отключаем проверку версии Xcode для Icon Composer в rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
 
           BUILD_NUMBER_OFFSET="$(cat build_number_offset 2>/dev/null || echo 0)"
