@@ -37,6 +37,39 @@ jobs:
 
           cd $SOURCE_DIR
 
+          # Полностью патчим метод с WindowingControlStyle, чтобы сборка не падала на старом SDK
+          python3 -c "
+path = 'submodules/Display/Source/NativeWindowHostView.swift'
+with open(path, 'r') as f:
+    content = f.read()
+
+target_block = '''    @available(iOS 26.0, *)
+    func preferredWindowingControlStyle(for windowScene: UIWindowScene) -> UIWindowScene.WindowingControlStyle {
+        return .minimal
+    }'''
+
+if target_block in content:
+    content = content.replace(target_block, '//@available(iOS 26.0, *)\n    //func preferredWindowingControlStyle...')
+elif 'preferredWindowingControlStyle' in content:
+    # Универсальная замена, если форматирование немного отличается
+    lines = content.splitlines()
+    new_lines = []
+    skip = 0
+    for line in lines:
+        if 'preferredWindowingControlStyle' in line:
+            skip = 3 # пропускаем сигнатуру и тело метода
+            new_lines.append('    // ' + line)
+        elif skip > 0:
+            new_lines.append('    // ' + line)
+            skip -= 1
+        else:
+            new_lines.append(line)
+    content = '\n'.join(new_lines)
+
+with open(path, 'w') as f:
+    f.write(content)
+" || true
+
           # Отключаем проверку версии Xcode для Icon Composer в rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
 
