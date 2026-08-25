@@ -39,6 +39,9 @@ jobs:
 
           cd $SOURCE_DIR
 
+          # Удаление ассетов формата .icon для обхода ошибки Xcode 26
+          find . -name "*.icon" -type d -exec rm -rf {} + 2>/dev/null || true
+
           BUILD_NUMBER_OFFSET="$(cat build_number_offset 2>/dev/null || echo 0)"
 
           export APP_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["app"]);')
