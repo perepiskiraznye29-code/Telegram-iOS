@@ -37,27 +37,8 @@ jobs:
 
           cd $SOURCE_DIR
 
-          # Точечно удаляем метод preferredWindowingControlStyle для полной совместимости со старыми SDK
-          python3 -c "
-path = 'submodules/Display/Source/NativeWindowHostView.swift'
-import os
-if os.path.exists(path):
-    with open(path, 'r') as f:
-        lines = f.readlines()
-    new_lines = []
-    skip = False
-    for line in lines:
-        if 'preferredWindowingControlStyle' in line:
-            skip = True
-            continue
-        if skip:
-            if '}' in line:
-                skip = False
-            continue
-        new_lines.append(line)
-    with open(path, 'w') as f:
-        f.writelines(new_lines)
-" || true
+          # Надежное удаление проблемного метода через sed без ошибок YAML
+          find . -name "NativeWindowHostView.swift" -exec sed -i '' '/preferredWindowingControlStyle/,/}/d' {} + 2>/dev/null || true
 
           # Отключаем проверку версии Xcode для Icon Composer в rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
