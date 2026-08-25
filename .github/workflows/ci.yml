@@ -27,7 +27,7 @@ jobs:
           sudo mkdir -p /Users/Shared
           cp -R $GITHUB_WORKSPACE /Users/Shared/
           mv /Users/Shared/$(basename $GITHUB_WORKSPACE) /Users/Shared/telegram-ios
-
+     
       - name: Build the App
         run: |
           set -x
@@ -37,9 +37,8 @@ jobs:
 
           cd $SOURCE_DIR
 
-          # Точечно удаляем новые методы и свойства, несовместимые с текущим SDK Xcode 16.1
-          find . -name "NativeWindowHostView.swift" -exec sed -i '' '/preferredWindowingControlStyle/,/}/d' {} + 2>/dev/null || true
-          find . -name "NativeWindowHostView.swift" -exec sed -i '' '/preferredScreenEdgesDeferringSystemGestures/,/}/d' {} + 2>/dev/null || true
+          # Удаляем несовместимый Icon Composer бандл иконки
+          rm -rf Telegram/Telegram-iOS/Telegram.icon 2>/dev/null || true
 
           # Отключаем проверку версии Xcode для Icon Composer в rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
@@ -72,6 +71,7 @@ jobs:
           mkdir -p build/DSYMs
           find bazel-out/ -name "*.dSYM" -exec cp -R {} build/DSYMs/ \; 2>/dev/null || true
           zip -r "./$OUTPUT_PATH/Telegram.DSYMs.zip" build/DSYMs 1>/dev/null || true
+
 
       - name: Upload IPA as Artifact (Backup)
         uses: actions/upload-artifact@v4
