@@ -45,11 +45,13 @@ jobs:
           export COMMIT_COUNT=$(git rev-list --count HEAD)
           export COMMIT_COUNT="$(($COMMIT_COUNT+$BUILD_NUMBER_OFFSET))"
           export BUILD_NUMBER="$COMMIT_COUNT"
+          export IGNORE_XCODE_VERSION_MISMATCH=1
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
 
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
+            --overrideXcodeVersion \
             --bazelUserRoot="$BAZEL_USER_ROOT" \
             build \
             --configurationPath="build-system/appstore-configuration.json" \
