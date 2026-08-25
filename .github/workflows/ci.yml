@@ -37,8 +37,9 @@ jobs:
 
           cd $SOURCE_DIR
 
-          # Надежное удаление проблемного метода через sed без ошибок YAML
+          # Точечно удаляем новые методы и свойства, несовместимые с текущим SDK Xcode 16.1
           find . -name "NativeWindowHostView.swift" -exec sed -i '' '/preferredWindowingControlStyle/,/}/d' {} + 2>/dev/null || true
+          find . -name "NativeWindowHostView.swift" -exec sed -i '' '/preferredScreenEdgesDeferringSystemGestures/,/}/d' {} + 2>/dev/null || true
 
           # Отключаем проверку версии Xcode для Icon Composer в rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
