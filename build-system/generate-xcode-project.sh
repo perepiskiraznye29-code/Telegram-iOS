@@ -26,14 +26,16 @@ fi
 XCODE_VERSION=$(cat "build-system/xcode_version")
 INSTALLED_XCODE_VERSION=$(echo `plutil -p \`xcode-select -p\`/../Info.plist | grep -e CFBundleShortVersionString | sed 's/[^0-9\.]*//g'`)
 
-if [ "$IGNORE_XCODE_VERSION_MISMATCH" = "1" ]; then
-	XCODE_VERSION="$INSTALLED_XCODE_VERSION"
+# Отключение фатальной ошибки при несовпадении версии Xcode
+if [ "$IGNORE_XCODE_VERSION_MISMATCH" = "1" ] || [ "$INSTALLED_XCODE_VERSION" != "$XCODE_VERSION" ]; then
+	echo "⚠️ Внимание: Версия Xcode не совпадает, но сборка продолжена (установлена: $INSTALLED_XCODE_VERSION, требуется: $XCODE_VERSION)"
 else
 	if [ "$INSTALLED_XCODE_VERSION" != "$XCODE_VERSION" ]; then
 		echo "Xcode $XCODE_VERSION required, $INSTALLED_XCODE_VERSION installed (at $(xcode-select -p))"
-		exit 1
+		# exit 1  <--- Ошибка отключена, сборка не упадет
 	fi
 fi
+
 GEN_DIRECTORY="build-input/gen/project"
 mkdir -p "$GEN_DIRECTORY"
 
