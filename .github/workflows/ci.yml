@@ -53,7 +53,7 @@ jobs:
               f.write(content)
           "
 
-          # 3. Вырезаем несовместимый с iOS 18.1 метод из NativeWindowHostView.swift
+          # 3. Вырезаем несовместимый с iOS 18 метод из NativeWindowHostView.swift
           python3 -c "
           import re
           p = 'submodules/Display/Source/NativeWindowHostView.swift'
@@ -65,7 +65,27 @@ jobs:
               f.write(c)
           "
 
-          # 4. Отключаем Telegram.icon и вырезаем alternate_icons из Telegram/BUILD
+          # 4. Добавляем заглушки для UIGlassEffect в GlassBackgroundComponent.swift
+          python3 -c "
+          p = 'submodules/TelegramUI/Components/GlassBackgroundComponent/Sources/GlassBackgroundComponent.swift'
+          with open(p, 'r') as f:
+              c = f.read()
+          stubs = '''
+import UIKit
+
+private final class UIGlassEffect: UIVisualEffect {
+    var tintColor: UIColor?
+    var isInteractive: Bool = false
+}
+private final class UIGlassContainerEffect: UIVisualEffect {
+    var spacing: CGFloat = 0.0
+}
+'''
+          with open(p, 'w') as f:
+              f.write(stubs + '\n' + c)
+          "
+
+          # 5. Отключаем Telegram.icon и очищаем alternate_icons в Telegram/BUILD
           rm -rf Telegram/Telegram-iOS/Telegram.icon
           python3 -c "
           import re
@@ -79,7 +99,7 @@ jobs:
               f.write('\n'.join(lines))
           "
 
-          # 5. Отключаем проверки версии Xcode в rules_apple
+          # 6. Отключаем проверку версии actool
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
 
           BUILD_NUMBER_OFFSET="$(cat build_number_offset 2>/dev/null || echo 0)"
