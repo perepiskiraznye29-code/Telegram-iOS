@@ -65,7 +65,7 @@ jobs:
               f.write(c)
           "
 
-          # 4. Вырезаем Telegram.icon из Telegram/BUILD
+          # 4. Отключаем Telegram.icon и вырезаем alternate_icons из Telegram/BUILD
           rm -rf Telegram/Telegram-iOS/Telegram.icon
           python3 -c "
           import re
@@ -73,6 +73,7 @@ jobs:
           with open(p, 'r') as f:
               c = f.read()
           c = re.sub(r'glob\s*\([^)]*Telegram\.icon[^)]*\)', '[]', c, flags=re.DOTALL)
+          c = re.sub(r'alternate_icons\s*=\s*\[[^\]]*\]', 'alternate_icons = []', c, flags=re.DOTALL)
           lines = [line for line in c.splitlines() if 'Telegram.icon' not in line]
           with open(p, 'w') as f:
               f.write('\n'.join(lines))
