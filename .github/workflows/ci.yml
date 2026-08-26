@@ -70,17 +70,7 @@ jobs:
           p = 'submodules/TelegramUI/Components/GlassBackgroundComponent/Sources/GlassBackgroundComponent.swift'
           with open(p, 'r') as f:
               c = f.read()
-          stubs = '''
-import UIKit
-
-private final class UIGlassEffect: UIVisualEffect {
-    var tintColor: UIColor?
-    var isInteractive: Bool = false
-}
-private final class UIGlassContainerEffect: UIVisualEffect {
-    var spacing: CGFloat = 0.0
-}
-'''
+          stubs = 'import UIKit\n\nprivate final class UIGlassEffect: UIVisualEffect {\n    var tintColor: UIColor?\n    var isInteractive: Bool = false\n}\nprivate final class UIGlassContainerEffect: UIVisualEffect {\n    var spacing: CGFloat = 0.0\n}\n'
           with open(p, 'w') as f:
               f.write(stubs + '\n' + c)
           "
