@@ -38,12 +38,12 @@ jobs:
 
           cd "$SOURCE_DIR"
 
-          # 1. Настройка параметров Bazel против OOM и строгих проверок
+          # 1. Флаги Bazel
           echo "build --incompatible_disallow_empty_glob=false" >> ~/.bazelrc
           echo "build --check_direct_dependencies=off" >> ~/.bazelrc
           echo "build --jobs=6" >> ~/.bazelrc
 
-          # 2. Патч Network.swift (исправление ошибок компилятора Swift)
+          # 2. Патч Network.swift
           python3 -c "
           p = 'submodules/TelegramCore/Sources/Network/Network.swift'
           with open(p, 'r') as f:
@@ -54,7 +54,7 @@ jobs:
               f.write(content)
           "
 
-          # 3. Патч NativeWindowHostView.swift (вырезаем iOS 26 методы)
+          # 3. Патч NativeWindowHostView.swift
           python3 -c "
           import re
           p = 'submodules/Display/Source/NativeWindowHostView.swift'
@@ -66,23 +66,17 @@ jobs:
               f.write(c)
           "
 
-          # 4. Патч GlassBackgroundComponent.swift (вырезаем UIGlassEffect под корень)
+          # 4. Внедрение заглушек UIGlassEffect в GlassBackgroundComponent.swift
           python3 -c "
-          import re
           p = 'submodules/TelegramUI/Components/GlassBackgroundComponent/Sources/GlassBackgroundComponent.swift'
           with open(p, 'r') as f:
               c = f.read()
-          c = c.replace('#available(iOS 26.0, *)', 'false')
-          c = re.sub(r'as\?\s*UIGlassEffect', 'as? UIVisualEffect', c)
-          c = re.sub(r'UIGlassContainerEffect\(\)', 'UIVisualEffect()', c)
-          c = re.sub(r'currentEffect\.tintColor\s*==\s*glassEffect\.tintColor', 'false', c)
-          c = re.sub(r'currentEffect\.isInteractive\s*==\s*glassEffect\.isInteractive', 'false', c)
-          c = re.sub(r'effect\.spacing\s*=\s*spacing', '', c)
+          stubs = 'import UIKit\n\nprivate final class UIGlassEffect: UIVisualEffect {\n    var tintColor: UIColor? = nil\n    var isInteractive: Bool = false\n}\n\nprivate final class UIGlassContainerEffect: UIVisualEffect {\n    var spacing: CGFloat = 0.0\n}\n'
           with open(p, 'w') as f:
-              f.write(c)
+              f.write(stubs + '\n' + c)
           "
 
-          # 5. Патч Telegram/BUILD (отключаем сбойный alticonstool и Telegram.icon)
+          # 5. Патч Telegram/BUILD (отключение Telegram.icon и alternate_icons)
           rm -rf Telegram/Telegram-iOS/Telegram.icon
           python3 -c "
           import re
@@ -96,7 +90,7 @@ jobs:
               f.write('\n'.join(lines))
           "
 
-          # 6. Отключаем проверку версий в actool.bzl
+          # 6. Отключение проверок версий actool
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
 
           BUILD_NUMBER_OFFSET="$(cat build_number_offset 2>/dev/null || echo 0)"
@@ -109,7 +103,7 @@ jobs:
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
 
-          # 7. Импорт сертификатов фейкового подписывания и сборка IPA
+          # 7. Импорт сертификатов и компиляция
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
           python3 -u build-system/Make/Make.py \
             --overrideXcodeVersion \
@@ -120,7 +114,7 @@ jobs:
             --configuration=release_arm64 \
             --buildNumber="$BUILD_NUMBER"
 
-          # 8. Сбор артефактов
+          # 8. Экспорт готового IPA
           OUTPUT_PATH="build/artifacts"
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
