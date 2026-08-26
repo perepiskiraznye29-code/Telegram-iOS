@@ -12,7 +12,8 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: '0'
@@ -25,17 +26,17 @@ jobs:
         run: |
           set -x
           sudo mkdir -p /Users/Shared
-          cp -R $GITHUB_WORKSPACE /Users/Shared/
-          mv /Users/Shared/$(basename $GITHUB_WORKSPACE) /Users/Shared/telegram-ios
+          cp -R "$GITHUB_WORKSPACE" /Users/Shared/
+          mv /Users/Shared/$(basename "$GITHUB_WORKSPACE") /Users/Shared/telegram-ios
 
-            - name: Build the App
+      - name: Build the App
         run: |
           set -x
 
           SOURCE_DIR=/Users/Shared/telegram-ios
           BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
 
-          cd $SOURCE_DIR
+          cd "$SOURCE_DIR"
 
           # 1. Исправляем ошибки Swift в Network.swift
           python3 -c "
@@ -48,24 +49,20 @@ jobs:
               f.write(content)
           "
 
-          # 2. Полностью вырезаем Telegram.icon из Telegram/BUILD
+          # 2. Вырезаем Telegram.icon из Telegram/BUILD
           rm -rf Telegram/Telegram-iOS/Telegram.icon
           python3 -c "
           import re
           p = 'Telegram/BUILD'
           with open(p, 'r') as f:
               c = f.read()
-          
-          # Заменяем вызовы glob с Telegram.icon на пустой список []
           c = re.sub(r'glob\s*\(\s*\[[^\]]*Telegram\.icon[^\]]*\][^\)]*\)', '[]', c, flags=re.DOTALL)
-          # Удаляем строковые пути к Telegram.icon из списков
           c = re.sub(r'[\'\"][^\'\"]*Telegram\.icon[^\'\"]*[\'\"],?', '', c)
-          
           with open(p, 'w') as f:
               f.write(c)
           "
 
-          # 3. Отключаем проверку версии Xcode в правилах rules_apple
+          # 3. Отключаем проверку версии Xcode в rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
 
           BUILD_NUMBER_OFFSET="$(cat build_number_offset 2>/dev/null || echo 0)"
@@ -91,7 +88,7 @@ jobs:
           OUTPUT_PATH="build/artifacts"
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
-          find bazel-out/ -name "*.ipa" -exec cp {} $OUTPUT_PATH/Telegram.ipa \;
+          find bazel-out/ -name "*.ipa" -exec cp {} "$OUTPUT_PATH/Telegram.ipa" \;
 
           mkdir -p build/DSYMs
           find bazel-out/ -name "*.dSYM" -exec cp -R {} build/DSYMs/ \; 2>/dev/null || true
