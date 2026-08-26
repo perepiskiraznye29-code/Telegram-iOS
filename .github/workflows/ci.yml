@@ -37,6 +37,17 @@ jobs:
 
           cd $SOURCE_DIR
 
+          # Исправляем ошибки в Network.swift
+          python3 -c "
+          p = 'submodules/TelegramCore/Sources/Network/Network.swift'
+          with open(p, 'r') as f:
+              content = f.read()
+          content = content.replace('direction: .audio, category: .audio', 'direction: .outgoing, category: .audio')
+          content = content.replace('var wrappedAdditionalSource: MTSignal?', 'var wrappedAdditionalSource: MTSignal?; _ = wrappedAdditionalSource')
+          with open(p, 'w') as f:
+              f.write(content)
+          "
+
           # Создаем структуру для Telegram.icon, чтобы glob в BUILD-файле не падал
           mkdir -p Telegram/Telegram-iOS/Telegram.icon
           echo '{"info": {"author": "xcode", "version": 1}}' > Telegram/Telegram-iOS/Telegram.icon/Contents.json
