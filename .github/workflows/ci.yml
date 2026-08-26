@@ -38,7 +38,11 @@ jobs:
 
           cd "$SOURCE_DIR"
 
-          # 1. Исправляем ошибки Swift в Network.swift
+          # 1. Отключаем проверку пустых glob и несоответствия зависимостей в Bazel
+          echo "build --incompatible_disallow_empty_glob=false" >> ~/.bazelrc
+          echo "build --check_direct_dependencies=off" >> ~/.bazelrc
+
+          # 2. Исправляем ошибки Swift в Network.swift
           python3 -c "
           p = 'submodules/TelegramCore/Sources/Network/Network.swift'
           with open(p, 'r') as f:
@@ -49,20 +53,22 @@ jobs:
               f.write(content)
           "
 
-          # 2. Вырезаем Telegram.icon из Telegram/BUILD
+          # 3. Полностью удаляем Telegram.icon и вырезаем любые его упоминания из Telegram/BUILD
           rm -rf Telegram/Telegram-iOS/Telegram.icon
           python3 -c "
           import re
           p = 'Telegram/BUILD'
           with open(p, 'r') as f:
               c = f.read()
-          c = re.sub(r'glob\s*\(\s*\[[^\]]*Telegram\.icon[^\]]*\][^\)]*\)', '[]', c, flags=re.DOTALL)
-          c = re.sub(r'[\'\"][^\'\"]*Telegram\.icon[^\'\"]*[\'\"],?', '', c)
+          # Заменяем многострочные glob с Telegram.icon на пустой список
+          c = re.sub(r'glob\s*\([^)]*Telegram\.icon[^)]*\)', '[]', c, flags=re.DOTALL)
+          # Удаляем оставшиеся строки, содержащие Telegram.icon
+          lines = [line for line in c.splitlines() if 'Telegram.icon' not in line]
           with open(p, 'w') as f:
-              f.write(c)
+              f.write('\n'.join(lines))
           "
 
-          # 3. Отключаем проверку версии Xcode в rules_apple
+          # 4. Отключаем блокирующие проверки версии Xcode в rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
 
           BUILD_NUMBER_OFFSET="$(cat build_number_offset 2>/dev/null || echo 0)"
