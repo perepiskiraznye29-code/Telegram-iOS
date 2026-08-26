@@ -28,7 +28,7 @@ jobs:
           cp -R $GITHUB_WORKSPACE /Users/Shared/
           mv /Users/Shared/$(basename $GITHUB_WORKSPACE) /Users/Shared/telegram-ios
 
-      - name: Build the App
+            - name: Build the App
         run: |
           set -x
 
@@ -37,7 +37,7 @@ jobs:
 
           cd $SOURCE_DIR
 
-          # 1. Исправляем синтаксические ошибки Swift в Network.swift
+          # 1. Исправляем ошибки Swift в Network.swift
           python3 -c "
           p = 'submodules/TelegramCore/Sources/Network/Network.swift'
           with open(p, 'r') as f:
@@ -48,15 +48,19 @@ jobs:
               f.write(content)
           "
 
-          # 2. Исключаем Telegram.icon из BUILD-файла, чтобы actool не пытался компилировать пустой каталог
+          # 2. Полностью вырезаем Telegram.icon из Telegram/BUILD
           rm -rf Telegram/Telegram-iOS/Telegram.icon
           python3 -c "
           import re
           p = 'Telegram/BUILD'
           with open(p, 'r') as f:
               c = f.read()
-          # Заменяем glob с Telegram.icon на пустой список []
-          c = re.sub(r'glob\(\s*\[\s*[\'\"]Telegram-iOS/Telegram\.icon[^\'\"]*[\'\"]\s*\][^\)]*\)', '[]', c)
+          
+          # Заменяем вызовы glob с Telegram.icon на пустой список []
+          c = re.sub(r'glob\s*\(\s*\[[^\]]*Telegram\.icon[^\]]*\][^\)]*\)', '[]', c, flags=re.DOTALL)
+          # Удаляем строковые пути к Telegram.icon из списков
+          c = re.sub(r'[\'\"][^\'\"]*Telegram\.icon[^\'\"]*[\'\"],?', '', c)
+          
           with open(p, 'w') as f:
               f.write(c)
           "
