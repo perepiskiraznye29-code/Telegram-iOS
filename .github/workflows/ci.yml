@@ -37,7 +37,7 @@ jobs:
 
           cd $SOURCE_DIR
 
-          # Исправляем ошибки в Network.swift
+          # 1. Исправляем синтаксические ошибки Swift в Network.swift
           python3 -c "
           p = 'submodules/TelegramCore/Sources/Network/Network.swift'
           with open(p, 'r') as f:
@@ -48,11 +48,20 @@ jobs:
               f.write(content)
           "
 
-          # Создаем структуру для Telegram.icon, чтобы glob в BUILD-файле не падал
-          mkdir -p Telegram/Telegram-iOS/Telegram.icon
-          echo '{"info": {"author": "xcode", "version": 1}}' > Telegram/Telegram-iOS/Telegram.icon/Contents.json
+          # 2. Исключаем Telegram.icon из BUILD-файла, чтобы actool не пытался компилировать пустой каталог
+          rm -rf Telegram/Telegram-iOS/Telegram.icon
+          python3 -c "
+          import re
+          p = 'Telegram/BUILD'
+          with open(p, 'r') as f:
+              c = f.read()
+          # Заменяем glob с Telegram.icon на пустой список []
+          c = re.sub(r'glob\(\s*\[\s*[\'\"]Telegram-iOS/Telegram\.icon[^\'\"]*[\'\"]\s*\][^\)]*\)', '[]', c)
+          with open(p, 'w') as f:
+              f.write(c)
+          "
 
-          # Отключаем проверку версии Xcode для Icon Composer в rules_apple
+          # 3. Отключаем проверку версии Xcode в правилах rules_apple
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
 
           BUILD_NUMBER_OFFSET="$(cat build_number_offset 2>/dev/null || echo 0)"
