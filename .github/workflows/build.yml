@@ -13,59 +13,27 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository with submodules
+        uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           fetch-depth: '0'
 
       - name: Set active Xcode path
         run: |
-          # Выбираем Xcode 16, если доступен, иначе остаемся на текущем
-          sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer || true
+          # Выбираем стабильный Xcode 15/16
+          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer || true
 
-      - name: Create canonical source directory
+      - name: Install Build Tools
         run: |
-          set -x
-          sudo mkdir -p /Users/Shared
-          cp -R $GITHUB_WORKSPACE /Users/Shared/
-          mv /Users/Shared/$(basename $GITHUB_WORKSPACE) /Users/Shared/telegram-ios
+          brew install bazelisk yasm cmake ninja
+          pip3 install pbxproj
 
       - name: Build the App
         run: |
           set -x
 
-          SOURCE_DIR=/Users/Shared/telegram-ios
-          BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
-
-          cd $SOURCE_DIR
-
-          # Патчим обращение к WindowingControlStyle для совместимости с Xcode 15
-          python3 -c "
-import os
-path = 'submodules/Display/Source/NativeWindowHostView.swift'
-if os.path.exists(path):
-    with open(path, 'r') as f:
-        data = f.read()
-    if 'WindowingControlStyle' in data:
-        lines = data.splitlines()
-        new_lines = []
-        skip = False
-        for line in lines:
-            if 'preferredWindowingControlStyle' in line:
-                new_lines.append('#if compiler(>=6.0)')
-                new_lines.append(line)
-                skip = True
-            elif skip and line.strip() == '}':
-                new_lines.append(line)
-                new_lines.append('#endif')
-                skip = False
-            else:
-                new_lines.append(line)
-        with open(path, 'w') as f:
-            f.write('\n'.join(new_lines))
-" 2>/dev/null || true
-
-          # Отключаем падение rules_apple при проверке версии Xcode для Icon Composer
+          # Отключаем падение rules_apple при проверке версий
           find . -name "actool.bzl" -exec sed -i '' 's/fail("""/print("""/g' {} + 2>/dev/null || true
 
           BUILD_NUMBER_OFFSET="$(cat build_number_offset 2>/dev/null || echo 0)"
@@ -78,39 +46,53 @@ if os.path.exists(path):
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
 
+          # Импортируем тестовые сертификаты для сборки
           python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+
+          # Подготавливаем минимальный конфиг без требований App Store
+          mkdir -p "$HOME/telegram-configuration"
+          if [ -f "build-system/template_minimal_development_configuration.json" ]; then
+            cp build-system/template_minimal_development_configuration.json "$HOME/telegram-configuration/config.json"
+          elif [ -f "build-system/minimal-development-configuration.json" ]; then
+            cp build-system/minimal-development-configuration.json "$HOME/telegram-configuration/config.json"
+          else
+            cp build-system/appstore-configuration.json "$HOME/telegram-configuration/config.json"
+          fi
+
+          # Сборка с отключением тяжелых расширений и с фейк-подписью
           python3 -u build-system/Make/Make.py \
             --overrideXcodeVersion \
-            --bazelUserRoot="$BAZEL_USER_ROOT" \
             build \
-            --configurationPath="build-system/appstore-configuration.json" \
+            --configurationPath="$HOME/telegram-configuration/config.json" \
             --codesigningInformationPath=build-system/fake-codesigning \
             --configuration=release_arm64 \
-            --buildNumber="$BUILD_NUMBER"
+            --buildNumber="$BUILD_NUMBER" \
+            --disableExtensions
 
           OUTPUT_PATH="build/artifacts"
           rm -rf "$OUTPUT_PATH"
           mkdir -p "$OUTPUT_PATH"
           find bazel-out/ -name "*.ipa" -exec cp {} $OUTPUT_PATH/Telegram.ipa \;
 
-          mkdir -p build/DSYMs
-          find bazel-out/ -name "*.dSYM" -exec cp -R {} build/DSYMs/ \; 2>/dev/null || true
-          zip -r "./$OUTPUT_PATH/Telegram.DSYMs.zip" build/DSYMs 1>/dev/null || true
-
       - name: Upload IPA as Artifact (Backup)
         uses: actions/upload-artifact@v4
         with:
           name: Telegram-IPA
-          path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
+          path: build/artifacts/Telegram.ipa
+          if-no-files-found: error
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
+        if: success()
         with:
           tag_name: build-${{ env.BUILD_NUMBER }}
           name: Telegram ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})
           body: |
             An unsigned build of Telegram for iOS ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})
           files: |
+            build/artifacts/Telegram.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}          files: |
             /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
             /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
         env:
