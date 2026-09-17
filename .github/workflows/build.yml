@@ -20,8 +20,13 @@ jobs:
 
       - name: Set active Xcode path
         run: |
-          # Фиксируем Xcode 15.4, если есть, иначе берем доступный 16
-          sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer || true
+          # Принудительно выбираем Xcode 15.4, если он есть в системе
+          if [ -d "/Applications/Xcode_15.4.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_16.0.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+          fi
+          xcodebuild -version
 
       - name: Create canonical source directory
         run: |
@@ -65,14 +70,15 @@ if os.path.exists(path):
             f.write('\n'.join(new_lines))
 " 2>/dev/null || true
 
-          # 2. Патчим вызов UIGlassEffect(style: .clear) под новый SDK
+          # 2. Патчим ВСЕ вызовы UIGlassEffect(style: ...) на UIGlassEffect()
           python3 -c "
-import os
+import os, re
 path = 'submodules/TelegramUI/Components/GlassBackgroundComponent/Sources/GlassBackgroundComponent.swift'
 if os.path.exists(path):
     with open(path, 'r') as f:
         data = f.read()
-    data = data.replace('UIGlassEffect(style: .clear)', 'UIGlassEffect()')
+    # Заменяем UIGlassEffect(style: .regular), UIGlassEffect(style: .clear) и любые другие варианты
+    data = re.sub(r'UIGlassEffect\s*\([^)]*\)', 'UIGlassEffect()', data)
     with open(path, 'w') as f:
         f.write(data)
 " 2>/dev/null || true
