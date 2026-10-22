@@ -37,8 +37,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object submodules/TelegramCore/Sources/Network/Network.swift)" = "fc7166ec82935975a06742c89ade40fab8d3c4dd"
+          test "$(git hash-object submodules/TelegramCore/Sources/Network/Network.swift)" = "cf195202fdf4544c95fbc36450aeaa03202d2744"
           test "$(git hash-object submodules/MtProtoKit/Sources/MTContext.m)" = "881457bfbba756fdc8421df418f31d209c15c514"
+      - name: Restore compilation cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/extera-disk-cache
+          key: ios-port-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('versions.json', 'MODULE.bazel.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ios-port-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('versions.json', 'MODULE.bazel.lock') }}-
       - name: Import verification signing certificate
         run: python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
       - name: Build device IPA
@@ -49,6 +57,7 @@ jobs:
           echo 'build --local_resources=memory=HOST_RAM*0.65' >> "$HOME/.bazelrc"
           python3 -u build-system/Make/Make.py \
             --bazelUserRoot="$RUNNER_TEMP/extera-bazel" \
+            --cacheDir="$RUNNER_TEMP/extera-disk-cache" \
             build \
             --configurationPath=build-system/appstore-configuration.json \
             --codesigningInformationPath=build-system/fake-codesigning \
@@ -71,3 +80,9 @@ jobs:
           path: ${{ runner.temp }}/extera-build.log
           if-no-files-found: ignore
           retention-days: 7
+      - name: Save compilation cache
+        if: always() && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/extera-disk-cache
+          key: ${{ steps.cache.outputs.cache-primary-key }}

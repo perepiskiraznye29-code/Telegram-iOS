@@ -116,8 +116,8 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
 }
 
 public func exteraPortSettingsController(context: AccountContext) -> ViewController {
-    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories"]
-    let defaults = [true, false, false]
+    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts"]
+    let defaults = [true, false, false, false, false]
     let readValues: () -> [Bool] = {
         return keys.enumerated().map { index, key in
             return UserDefaults.standard.object(forKey: key) as? Bool ?? defaults[index]
@@ -137,8 +137,8 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
     |> map { presentationData, values -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let isRussian = (Locale.current.languageCode ?? "en") == "ru"
         let titles = isRussian
-            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами"]
-            : ["Message details", "Hide phone number in settings header", "Hide stories above chats"]
+            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M"]
+            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M"]
         let title = isRussian ? "Настройки мода" : "Mod settings"
         let footer = isRussian
             ? "После изменения перезапустите приложение. Параметры действуют для всех аккаунтов на этом устройстве."

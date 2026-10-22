@@ -6,6 +6,7 @@ Implemented in source:
 - Settings screen with persistent switches for message details, hiding the own number in the settings header, and hiding the stories strip above chats.
 - Message details submenu with message ID, internal peer and author IDs, ID namespace, local date/time and Unix timestamp.
 - Tap a value to copy it. Russian and English labels.
+- Optional seconds in message timestamps and full numeric counts instead of K/M abbreviations.
 - Visual hide options take full effect after restarting the app.
 
 Not yet implemented:
@@ -13,8 +14,9 @@ Not yet implemented:
 - DC lookup.
 
 Custom server requirement:
-- Network.swift and MTContext.m must stay byte-for-byte identical to the user's master branch at the base commit.
-- The build verifies their Git blob hashes before compiling. This preserves the user's custom server IP, port and RSA key.
+- The user's custom IP literals, port 2398 and RSA key are preserved.
+- Network.swift has two build fixes unrelated to endpoints: outgoing audio traffic direction and an explicit discard of the disabled backup address source. MTContext.m is unchanged.
+- The build verifies the expected Git blob hashes before compiling. This preserves the user's custom server IP, port and RSA key.
 
 Build:
 - GitHub Actions uses macOS 26 and selects the exact Xcode version from versions.json.
