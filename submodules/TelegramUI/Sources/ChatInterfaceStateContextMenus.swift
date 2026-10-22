@@ -964,6 +964,46 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
 
         var actions: [ContextMenuItem] = []
 
+        // Local message metadata, matching exteraGram's message details feature.
+        if messages.count == 1, let detailsMessage = messages.first {
+            let languageCode = Locale.current.languageCode ?? "en"
+            let isRussian = languageCode == "ru"
+            actions.append(.action(ContextMenuActionItem(text: isRussian ? "������ ���������" : "Message details", icon: { theme in
+                return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Copy"), color: theme.actionSheet.primaryTextColor)
+            }, action: { c, _ in
+                var subItems: [ContextMenuItem] = []
+                subItems.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.Common_Back, icon: { theme in
+                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Back"), color: theme.actionSheet.primaryTextColor)
+                }, iconPosition: .left, action: { c, _ in
+                    c?.popItems()
+                })))
+                subItems.append(.separator)
+
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateStyle = .medium
+                dateFormatter.timeStyle = .medium
+                var details: [(String, String)] = [
+                    (isRussian ? "ID ���������" : "Message ID", String(detailsMessage.id.id)),
+                    (isRussian ? "ID ���� (����������)" : "Chat ID (internal)", String(detailsMessage.id.peerId.toInt64())),
+                    (isRussian ? "������������ ID" : "Message namespace", String(detailsMessage.id.namespace)),
+                    (isRussian ? "����������" : "Sent", dateFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(detailsMessage.timestamp)))),
+                    ("Unix time", String(detailsMessage.timestamp))
+                ]
+                if let author = detailsMessage.author {
+                    details.append((isRussian ? "ID ������ (����������)" : "Author ID (internal)", String(author.id.toInt64())))
+                }
+                for (label, value) in details {
+                    subItems.append(.action(ContextMenuActionItem(text: "\(label): \(value)", textLayout: .multiline, icon: { _ in nil }, action: { _, f in
+                        UIPasteboard.general.string = value
+                        f(.default)
+                    })))
+                }
+                c?.pushItems(items: .single(ContextController.Items(content: .list(subItems))))
+            })))
+        }
+
+
+
         if isSharedMediaPolls && messages.count == 1 {
             actions.append(.action(ContextMenuActionItem(text: chatPresentationInterfaceState.strings.SharedMedia_ViewInChat, icon: { theme in
                 return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/GoToMessage"), color: theme.actionSheet.primaryTextColor)
