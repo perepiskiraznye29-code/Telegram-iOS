@@ -153,6 +153,7 @@ enum PeerInfoContextSubject {
 }
 
 enum PeerInfoSettingsSection {
+    case exteraPort
     case avatar
     case edit
     case proxy

@@ -33,6 +33,12 @@ jobs:
           sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
           xcodebuild -version
           df -h .
+      - name: Verify custom server configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object submodules/TelegramCore/Sources/Network/Network.swift)" = "fc7166ec82935975a06742c89ade40fab8d3c4dd"
+          test "$(git hash-object submodules/MtProtoKit/Sources/MTContext.m)" = "881457bfbba756fdc8421df418f31d209c15c514"
       - name: Import verification signing certificate
         run: python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
       - name: Build device IPA

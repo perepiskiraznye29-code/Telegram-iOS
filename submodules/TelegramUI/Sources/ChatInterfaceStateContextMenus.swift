@@ -965,7 +965,7 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
         var actions: [ContextMenuItem] = []
 
         // Local message metadata, matching exteraGram's message details feature.
-        if messages.count == 1, let detailsMessage = messages.first {
+        if (UserDefaults.standard.object(forKey: "exteraPort.showMessageDetails") as? Bool ?? true), messages.count == 1, let detailsMessage = messages.first {
             let languageCode = Locale.current.languageCode ?? "en"
             let isRussian = languageCode == "ru"
             actions.append(.action(ContextMenuActionItem(text: isRussian ? "������ ���������" : "Message details", icon: { theme in

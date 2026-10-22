@@ -44,6 +44,8 @@ extension PeerInfoScreenNode {
             }
         }
         switch section {
+        case .exteraPort:
+            push(exteraPortSettingsController(context: self.context))
         case .avatar:
             self.controller?.openAvatarForEditing()
         case .edit:

@@ -227,6 +227,10 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     } else {
         notificationsWarning = false
     }
+    items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 99, text: (Locale.current.languageCode ?? "en") == "ru" ? "Настройки мода" : "Mod settings", icon: PresentationResourcesSettings.appearance, action: {
+        interaction.openSettings(.exteraPort)
+    }))
+
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 0, label: notificationsWarning ? .badge("!", presentationData.theme.list.itemDestructiveColor) : .none, text: presentationData.strings.Settings_NotificationsAndSounds, icon: PresentationResourcesSettings.notifications, action: {
         interaction.openSettings(.notificationsAndSounds)
     }))

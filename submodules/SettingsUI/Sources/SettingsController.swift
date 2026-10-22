@@ -6,6 +6,8 @@ import SwiftSignalKit
 import TelegramCore
 import AccountContext
 import PasswordSetupUI
+import ItemListUI
+import TelegramPresentationData
 
 public protocol SettingsController: AnyObject {
     func updateContext(context: AccountContext)
@@ -73,4 +75,83 @@ public func makeSetupTwoFactorAuthController(context: AccountContext) -> ViewCon
         phoneNumber: nil
     )))
     return controller
+}
+
+private final class ExteraPortSettingsArguments {
+    let update: (Int32, Bool) -> Void
+
+    init(update: @escaping (Int32, Bool) -> Void) {
+        self.update = update
+    }
+}
+
+private enum ExteraPortSettingsEntry: ItemListNodeEntry {
+    case toggle(Int32, String, Bool)
+    case footer(String)
+
+    var section: ItemListSectionId { return 0 }
+
+    var stableId: Int32 {
+        switch self {
+        case let .toggle(index, _, _): return index
+        case .footer: return 100
+        }
+    }
+
+    static func < (lhs: ExteraPortSettingsEntry, rhs: ExteraPortSettingsEntry) -> Bool {
+        return lhs.stableId < rhs.stableId
+    }
+
+    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {
+        let arguments = arguments as! ExteraPortSettingsArguments
+        switch self {
+        case let .toggle(index, title, value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
+                arguments.update(index, value)
+            })
+        case let .footer(text):
+            return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        }
+    }
+}
+
+public func exteraPortSettingsController(context: AccountContext) -> ViewController {
+    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories"]
+    let defaults = [true, false, false]
+    let readValues: () -> [Bool] = {
+        return keys.enumerated().map { index, key in
+            return UserDefaults.standard.object(forKey: key) as? Bool ?? defaults[index]
+        }
+    }
+    let values = ValuePromise<[Bool]>(readValues(), ignoreRepeated: true)
+    let arguments = ExteraPortSettingsArguments(update: { index, value in
+        guard keys.indices.contains(Int(index)) else { return }
+        UserDefaults.standard.set(value, forKey: keys[Int(index)])
+        values.set(readValues())
+    })
+
+    let signal = combineLatest(queue: .mainQueue(),
+        context.sharedContext.presentationData,
+        values.get()
+    )
+    |> map { presentationData, values -> (ItemListControllerState, (ItemListNodeState, Any)) in
+        let isRussian = (Locale.current.languageCode ?? "en") == "ru"
+        let titles = isRussian
+            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами"]
+            : ["Message details", "Hide phone number in settings header", "Hide stories above chats"]
+        let title = isRussian ? "Настройки мода" : "Mod settings"
+        let footer = isRussian
+            ? "После изменения перезапустите приложение. Параметры действуют для всех аккаунтов на этом устройстве."
+            : "Restart the app after changing these options. Options apply to all accounts on this device."
+        var entries: [ExteraPortSettingsEntry] = []
+        for (index, label) in titles.enumerated() {
+            entries.append(.toggle(Int32(index), label, values[index]))
+        }
+        entries.append(.footer(footer))
+        let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
+        let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: entries, style: .blocks, animateChanges: false)
+        return (controllerState, (listState, arguments))
+    }
+
+    return ItemListController(context: context, state: signal)
 }

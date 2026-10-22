@@ -1223,7 +1223,7 @@ final class PeerInfoHeaderNode: ASDisplayNode {
             }
             if title.isEmpty {
                 if case let .user(user) = peer, let phone = user.phone {
-                    title = formatPhoneNumber(context: self.context, number: phone)
+                    title = self.isSettings && UserDefaults.standard.bool(forKey: "exteraPort.hideOwnPhoneNumber") ? "••••••••" : formatPhoneNumber(context: self.context, number: phone)
                 } else if let addressName = peer.addressName {
                     title = "@\(addressName)"
                 } else {
@@ -1237,6 +1237,9 @@ final class PeerInfoHeaderNode: ASDisplayNode {
             
             if self.isSettings, case let .user(user) = peer {
                 var subtitle = formatPhoneNumber(context: self.context, number: user.phone ?? "")
+                if UserDefaults.standard.bool(forKey: "exteraPort.hideOwnPhoneNumber") {
+                    subtitle = "••••••••"
+                }
                 
                 if let mainUsername = user.addressName, !mainUsername.isEmpty {
                     subtitle = "\(subtitle) • @\(mainUsername)"
