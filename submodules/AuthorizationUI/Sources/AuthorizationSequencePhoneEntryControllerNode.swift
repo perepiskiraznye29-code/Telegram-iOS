@@ -324,6 +324,7 @@ final class AuthorizationSequencePhoneEntryControllerNode: ASDisplayNode {
     private let exportTokenDisposable = MetaDisposable()
     private let tokenEventsDisposable = MetaDisposable()
     var accountUpdated: ((UnauthorizedAccount) -> Void)?
+    var qrLoginFailed: (() -> Void)?
     
     var retryPasskey: (() -> Void)?
     
@@ -701,9 +702,16 @@ final class AuthorizationSequencePhoneEntryControllerNode: ASDisplayNode {
     }
     
     @objc private func debugQrTap(_ recognizer: UITapGestureRecognizer) {
+        self.showLoginQRCode()
+    }
+
+    func showLoginQRCode() {
+        guard self.account != nil else {
+            return
+        }
         if self.qrNode == nil {
             let qrNode = ASImageNode()
-            qrNode.frame = CGRect(origin: CGPoint(x: 16.0, y: 64.0 + 16.0), size: CGSize(width: 200.0, height: 200.0))
+            qrNode.frame = CGRect(origin: CGPoint(x: max(16.0, (self.bounds.width - 200.0) / 2.0), y: 80.0), size: CGSize(width: 200.0, height: 200.0))
             self.qrNode = qrNode
             self.addSubnode(qrNode)
             
@@ -716,6 +724,7 @@ final class AuthorizationSequencePhoneEntryControllerNode: ASDisplayNode {
             return
         }
         let sharedContext = self.sharedContext
+        let syncContacts = self.syncContacts
         let tokenSignal = sharedContext.activeAccountContexts
         |> castError(ExportAuthTransferTokenError.self)
         |> take(1)
@@ -727,7 +736,7 @@ final class AuthorizationSequencePhoneEntryControllerNode: ASDisplayNode {
             let allProductionUserIds = activeProductionUserIds
             let allTestingUserIds = activeTestingUserIds
             
-            return TelegramEngineUnauthorized(account: account).auth.exportAuthTransferToken(accountManager: sharedContext.accountManager, otherAccountUserIds: account.testingEnvironment ? allTestingUserIds : allProductionUserIds, syncContacts: true)
+            return TelegramEngineUnauthorized(account: account).auth.exportAuthTransferToken(accountManager: sharedContext.accountManager, otherAccountUserIds: account.testingEnvironment ? allTestingUserIds : allProductionUserIds, syncContacts: syncContacts)
         }
         
         self.exportTokenDisposable.set((tokenSignal
@@ -775,6 +784,10 @@ final class AuthorizationSequencePhoneEntryControllerNode: ASDisplayNode {
             case .loggedIn, .passwordRequested:
                 strongSelf.exportTokenDisposable.set(nil)
             }
+        }, error: { [weak self] _ in
+            self?.qrNode?.removeFromSupernode()
+            self?.qrNode = nil
+            self?.qrLoginFailed?()
         }))
     }
 }

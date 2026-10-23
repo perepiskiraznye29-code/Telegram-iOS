@@ -110,9 +110,24 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
     @objc private func cancelPressed() {
         self.back()
     }
+
+    @objc private func qrLoginPressed() {
+        self.view.endEditing(true)
+        self.controllerNode.showLoginQRCode()
+    }
     
     func updateNavigationItems() {
-        guard let layout = self.validLayout, layout.size.width < 360.0 else {
+        guard let layout = self.validLayout else {
+            return
+        }
+
+        if layout.size.width >= 360.0 {
+            if self.account != nil {
+                let title = Locale.current.languageCode == "ru" ? "Войти по QR" : "Log in with QR"
+                let item = UIBarButtonItem(title: title, style: .plain, target: self, action: #selector(self.qrLoginPressed))
+                item.isEnabled = !self.inProgress
+                self.navigationItem.rightBarButtonItem = item
+            }
             return
         }
                 
@@ -162,6 +177,12 @@ public final class AuthorizationSequencePhoneEntryController: ViewController, MF
                 return
             }
             self.loadAndPresentPasskey(force: true)
+        }
+        self.controllerNode.qrLoginFailed = { [weak self] in
+            guard let self else {
+                return
+            }
+            self.present(textAlertController(sharedContext: self.sharedContext, title: nil, text: self.presentationData.strings.Login_NetworkError, actions: [TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
         }
         
         if let (code, name, number) = self.currentData {
