@@ -526,16 +526,26 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
                 }
             }
             
-            let seedAddressList: [Int: [String]] = [
-                1: ["177.3.213.27"],
-                2: ["177.3.213.27"],
-                3: ["177.3.213.27"],
-                4: ["177.3.213.27"],
-                5: ["177.3.213.27"]
-            ]
+            let seedAddressList: [Int: [String]]
+            
+            if testingEnvironment {
+                seedAddressList = [
+                    1: ["149.154.175.10"],
+                    2: ["149.154.167.40"],
+                    3: ["149.154.175.117"]
+                ]
+            } else {
+                seedAddressList = [
+                    1: ["149.154.175.50", "2001:b28:f23d:f001::a"],
+                    2: ["149.154.167.50", "95.161.76.100", "2001:67c:4e8:f002::a"],
+                    3: ["149.154.175.100", "2001:b28:f23d:f003::a"],
+                    4: ["149.154.167.91", "2001:67c:4e8:f004::a"],
+                    5: ["149.154.171.5", "2001:b28:f23f:f005::a"]
+                ]
+            }
             
             for (id, ips) in seedAddressList {
-                context.setSeedAddressSetForDatacenterWithId(id, seedAddressSet: MTDatacenterAddressSet(addressList: ips.map { MTDatacenterAddress(ip: $0, port: 2398, preferForMedia: false, restrictToTcp: false, cdn: false, preferForProxy: false, secret: nil) }))
+                context.setSeedAddressSetForDatacenterWithId(id, seedAddressSet: MTDatacenterAddressSet(addressList: ips.map { MTDatacenterAddress(ip: $0, port: 443, preferForMedia: false, restrictToTcp: false, cdn: false, preferForProxy: false, secret: nil) }))
             }
             
             context.keychain = keychain
@@ -564,10 +574,9 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
                 }
             }
             #endif
-            // Keep backup address discovery disabled for the custom server.
-            _ = wrappedAdditionalSource
             
             if !supplementary {
+                context.setDiscoverBackupAddressListSignal(MTBackupAddressSignals.fetchBackupIps(testingEnvironment, currentContext: context, additionalSource: wrappedAdditionalSource, phoneNumber: phoneNumber, mainDatacenterId: datacenterId))
                 let externalRequestVerificationStream = arguments.externalRequestVerificationStream
                 context.setExternalRequestVerification({ nonce in
                     return MTSignal(generator: { subscriber in
@@ -604,6 +613,10 @@ func initializedNetwork(accountId: AccountRecordId, arguments: NetworkInitializa
                     })
                 })
             }
+            
+            /*#if DEBUG
+            context.beginExplicitBackupAddressDiscovery()
+            #endif*/
             
             let mtProto = MTProto(context: context, datacenterId: datacenterId, usageCalculationInfo: usageCalculationInfo(basePath: basePath, category: nil), requiredAuthToken: nil, authTokenMasterDatacenterId: 0)!
             mtProto.useTempAuthKeys = context.useTempAuthKeys
@@ -1031,6 +1044,13 @@ public final class Network: NSObject, MTRequestMessageServiceDelegate {
         self.context.performBatchUpdates {
             let address = MTDatacenterAddress(ip: host, port: UInt16(port), preferForMedia: false, restrictToTcp: false, cdn: false, preferForProxy: false, secret: secret)
             self.context.addAddressForDatacenter(withId: Int(datacenterId), address: address)
+            
+            /*let currentScheme = self.context.transportSchemeForDatacenter(withId: Int(datacenterId), media: false, isProxy: false)
+             if let currentScheme = currentScheme, currentScheme.address.isEqual(to: address) {
+             } else {
+             let scheme = MTTransportScheme(transport: MTTcpTransport.self, address: address, media: false)
+             self.context.updateTransportSchemeForDatacenter(withId: Int(datacenterId), transportScheme: scheme, media: false, isProxy: false)
+             }*/
             
             let currentSchemes = self.context.transportSchemesForDatacenter(withId: Int(datacenterId), media: false, enforceMedia: false, isProxy: false)
             var found = false
