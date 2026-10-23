@@ -290,7 +290,9 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         let appGroupName = "group.\(baseAppBundleId)"
 
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
-        configuration.sharedContainerIdentifier = appGroupName
+        if FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupName) != nil {
+            configuration.sharedContainerIdentifier = appGroupName
+        }
         configuration.isDiscretionary = false
         let session = URLSession(configuration: configuration, delegate: self, delegateQueue: .main)
         self.urlSessions.append(session)
@@ -641,9 +643,22 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
             isICloudEnabled: buildConfig.isICloudEnabled
         )
         
-        guard let appGroupUrl = maybeAppGroupUrl else {
-            self.mainWindow?.presentNative(UIAlertController(title: nil, message: "Error 2", preferredStyle: .alert))
-            return true
+        let appGroupUrl: URL
+        if let sharedContainerUrl = maybeAppGroupUrl {
+            appGroupUrl = sharedContainerUrl
+        } else {
+            // Re-signed installations may not have the App Group entitlement.
+            // Keep their data in the application's own persistent sandbox.
+            do {
+                let applicationSupportUrl = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                appGroupUrl = applicationSupportUrl.appendingPathComponent("Standalone", isDirectory: true)
+                try FileManager.default.createDirectory(at: appGroupUrl, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                let alert = UIAlertController(title: "Unable to open app storage", message: error.localizedDescription, preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "OK", style: .default))
+                self.mainWindow?.presentNative(alert)
+                return true
+            }
         }
         
         var isDebugConfiguration = false
@@ -671,7 +686,7 @@ private func extractAccountManagerState(records: AccountRecordsView<TelegramAcco
         } else {
             rootPath = rootPathForBasePath(appGroupUrl.path)
         }
-        if !isUITest {
+        if !isUITest && maybeAppGroupUrl != nil {
             performAppGroupUpgrades(appGroupPath: appGroupUrl.path, rootPath: rootPath)
         }
         
@@ -3329,3 +3344,4 @@ final class UpdateSettings: Codable, Equatable {
         return lhs.url == rhs.url
     }
 }
+
