@@ -79,6 +79,7 @@ public func makeSetupTwoFactorAuthController(context: AccountContext) -> ViewCon
 
 private final class ExteraPortSettingsArguments {
     let update: (Int32, Bool) -> Void
+    var editBalance: ((Bool) -> Void)?
 
     init(update: @escaping (Int32, Bool) -> Void) {
         self.update = update
@@ -88,12 +89,14 @@ private final class ExteraPortSettingsArguments {
 private enum ExteraPortSettingsEntry: ItemListNodeEntry {
     case toggle(Int32, String, Bool)
     case footer(String)
+    case balance(Int32, String, Bool)
 
     var section: ItemListSectionId { return 0 }
 
     var stableId: Int32 {
         switch self {
         case let .toggle(index, _, _): return index
+        case let .balance(index, _, _): return 20 + index
         case .footer: return 100
         }
     }
@@ -109,6 +112,10 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
             return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: title, value: value, sectionId: self.section, style: .blocks, updated: { value in
                 arguments.update(index, value)
             })
+        case let .balance(_, title, isTon):
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: {
+                arguments.editBalance?(isTon)
+            })
         case let .footer(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
         }
@@ -116,13 +123,16 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
 }
 
 public func exteraPortSettingsController(context: AccountContext) -> ViewController {
-    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts"]
-    let defaults = [true, false, false, false, false]
+    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances"]
+    let defaults = [true, false, false, false, false, true, false]
     let readValues: () -> [Bool] = {
         return keys.enumerated().map { index, key in
             return UserDefaults.standard.object(forKey: key) as? Bool ?? defaults[index]
         }
     }
+    weak var resultController: ViewController?
+    var revisionValue = 0
+    let revision = ValuePromise<Int>(0)
     let values = ValuePromise<[Bool]>(readValues(), ignoreRepeated: true)
     let arguments = ExteraPortSettingsArguments(update: { index, value in
         guard keys.indices.contains(Int(index)) else { return }
@@ -130,16 +140,45 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
         values.set(readValues())
     })
 
+    arguments.editBalance = { isTon in
+        let key = isTon ? "mechagram.visualTON" : "mechagram.visualStars"
+        let alert = UIAlertController(title: isTon ? "Visual TON · DEMO" : "Visual Stars · DEMO", message: "Только отображение. Покупки и переводы используют настоящий баланс.", preferredStyle: .alert)
+        alert.addTextField { field in
+            field.keyboardType = .decimalPad
+            field.text = UserDefaults.standard.string(forKey: key) ?? "0"
+            field.placeholder = "0"
+        }
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Сбросить", style: .destructive, handler: { _ in
+            UserDefaults.standard.removeObject(forKey: key)
+            revisionValue += 1
+            revision.set(revisionValue)
+        }))
+        alert.addAction(UIAlertAction(title: "Сохранить", style: .default, handler: { _ in
+            let text = (alert.textFields?.first?.text ?? "").replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let amount = Double(text), amount.isFinite, amount >= 0, amount <= 1_000_000_000_000, isTon || amount.rounded() == amount else {
+                let error = UIAlertController(title: "Некорректное значение", message: "Введите положительное число до 1 000 000 000 000. Stars — целое число.", preferredStyle: .alert)
+                error.addAction(UIAlertAction(title: "OK", style: .default))
+                resultController?.view.window?.rootViewController?.present(error, animated: true)
+                return
+            }
+            UserDefaults.standard.set(text, forKey: key)
+            revisionValue += 1
+            revision.set(revisionValue)
+        }))
+        resultController?.view.window?.rootViewController?.present(alert, animated: true)
+    }
     let signal = combineLatest(queue: .mainQueue(),
         context.sharedContext.presentationData,
-        values.get()
+        values.get(),
+        revision.get()
     )
-    |> map { presentationData, values -> (ItemListControllerState, (ItemListNodeState, Any)) in
+    |> map { presentationData, values, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let isRussian = (Locale.current.languageCode ?? "en") == "ru"
         let titles = isRussian
-            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M"]
-            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M"]
-        let title = isRussian ? "Настройки мода" : "Mod settings"
+            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M", "Сохранять удалённые сообщения", "Визуальные балансы · DEMO"]
+            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M", "Keep deleted messages", "Visual balances · DEMO"]
+        let title = "Mechagram"
         let footer = isRussian
             ? "После изменения перезапустите приложение. Параметры действуют для всех аккаунтов на этом устройстве."
             : "Restart the app after changing these options. Options apply to all accounts on this device."
@@ -147,11 +186,15 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
         for (index, label) in titles.enumerated() {
             entries.append(.toggle(Int32(index), label, values[index]))
         }
-        entries.append(.footer(footer))
+        entries.append(.balance(0, "Stars · DEMO: " + (UserDefaults.standard.string(forKey: "mechagram.visualStars") ?? "—"), false))
+        entries.append(.balance(1, "TON · DEMO: " + (UserDefaults.standard.string(forKey: "mechagram.visualTON") ?? "—"), true))
+        entries.append(.footer(footer + (isRussian ? " Удалённые сообщения сохраняются только если уже получены клиентом. Секретные чаты и таймеры не сохраняются. Балансы DEMO не дают права на покупки." : " Only previously received cloud messages can be retained. Secret chats and timers are excluded. DEMO balances cannot be spent.")))
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
         let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: entries, style: .blocks, animateChanges: false)
         return (controllerState, (listState, arguments))
     }
 
-    return ItemListController(context: context, state: signal)
+    let controller = ItemListController(context: context, state: signal)
+    resultController = controller
+    return controller
 }

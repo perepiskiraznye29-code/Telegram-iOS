@@ -5,6 +5,27 @@ import TelegramApi
 import MtProtoKit
 import EncryptionProvider
 
+// Retain only cloud messages already present locally; expiration and secret chats
+// continue through their normal deletion paths.
+private func mechagramRetainDeletedMessage(transaction: Transaction, id: MessageId) -> Bool {
+    guard UserDefaults.standard.object(forKey: "mechagram.keepDeleted") as? Bool ?? true,
+          id.namespace == Namespaces.Message.Cloud,
+          let message = transaction.getMessage(id),
+          !message.attributes.contains(where: { $0 is AutoremoveTimeoutMessageAttribute || $0 is AutoclearTimeoutMessageAttribute }) else {
+        return false
+    }
+    if message.attributes.contains(where: { ($0 as? EditedMessageAttribute)?.mechagramDeleted == true }) {
+        return true
+    }
+    transaction.updateMessage(id, update: { currentMessage in
+        var attributes = currentMessage.attributes.filter { !($0 is EditedMessageAttribute) }
+        let edited = currentMessage.attributes.compactMap { $0 as? EditedMessageAttribute }.first
+        attributes.append(EditedMessageAttribute(date: edited?.date ?? currentMessage.timestamp, isHidden: true, mechagramDeleted: true))
+        return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init), authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
+    })
+    return true
+}
+
 private func reactionGeneratedEvent(_ previousReactions: ReactionsMessageAttribute?, _ updatedReactions: ReactionsMessageAttribute?, message: Message, transaction: Transaction) -> (reactionAuthor: Peer, reaction: MessageReaction.Reaction, message: Message, timestamp: Int32)? {
     if let updatedReactions = updatedReactions, !message.flags.contains(.Incoming), message.id.peerId.namespace == Namespaces.Peer.CloudUser {
         let prev = previousReactions?.reactions ?? []
@@ -4440,6 +4461,8 @@ func replayFinalState(
                     }
                 }
             case let .DeleteMessagesWithGlobalIds(ids):
+                let retained = Set(transaction.messageIdsForGlobalIds(ids).filter { mechagramRetainDeletedMessage(transaction: transaction, id: $0) }.map { $0.id })
+                let ids = ids.filter { !retained.contains($0) }
                 var resourceIds: [MediaResourceId] = []
                 transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
                     addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
@@ -4449,6 +4472,7 @@ func replayFinalState(
                 }
                 deletedMessageIds.append(contentsOf: ids.map { .global($0) })
             case let .DeleteMessages(ids):
+                let ids = ids.filter { !mechagramRetainDeletedMessage(transaction: transaction, id: $0) }
                 _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: ids, manualAddMessageThreadStatsDifference: { id, add, remove in
                     addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
                 })

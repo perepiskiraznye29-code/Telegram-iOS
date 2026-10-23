@@ -543,7 +543,7 @@ final class StarsTransactionsScreenComponent: Component {
                 transition: .immediate,
                 component: AnyComponent(MultilineTextComponent(
                     text: .plain(NSAttributedString(
-                        string: environment.strings.Stars_Intro_Balance,
+                        string: UserDefaults.standard.bool(forKey: "mechagram.visualBalances") ? "DEMO" : environment.strings.Stars_Intro_Balance,
                         font: Font.regular(14.0),
                         textColor: environment.theme.actionSheet.primaryTextColor
                     )),
@@ -553,11 +553,17 @@ final class StarsTransactionsScreenComponent: Component {
                 containerSize: CGSize(width: 120.0, height: 100.0)
             )
             
-            let formattedBalance: String
+            var formattedBalance: String
             if component.starsContext.ton {
                 formattedBalance = formatTonAmountText(self.starsState?.balance.value ?? 0, dateTimeFormat: environment.dateTimeFormat)
             } else {
                 formattedBalance = formatStarsAmountText(self.starsState?.balance ?? StarsAmount.zero, dateTimeFormat: environment.dateTimeFormat)
+            }
+            if UserDefaults.standard.bool(forKey: "mechagram.visualBalances") {
+                let key = component.starsContext.ton ? "mechagram.visualTON" : "mechagram.visualStars"
+                if let value = UserDefaults.standard.string(forKey: key), let parsed = Double(value), parsed.isFinite, parsed >= 0 {
+                    formattedBalance = value.replacingOccurrences(of: ".", with: environment.dateTimeFormat.decimalSeparator)
+                }
             }
             let smallLabelFont = Font.regular(11.0)
             let labelFont = Font.semibold(14.0)

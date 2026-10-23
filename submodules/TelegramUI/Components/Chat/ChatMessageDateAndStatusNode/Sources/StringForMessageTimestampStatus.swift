@@ -248,5 +248,8 @@ public func stringForMessageTimestampStatus(
         }
     }
     
+    if message.attributes.contains(where: { ($0 as? EditedMessageAttribute)?.mechagramDeleted == true }) {
+        return "🗑 " + dateText
+    }
     return dateText
 }

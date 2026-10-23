@@ -177,12 +177,20 @@ final class StarsBalanceComponent: Component {
             let sideInset: CGFloat = 16.0
             var contentHeight: CGFloat = sideInset
             
-            let formattedLabel: String
+            var formattedLabel: String
             switch component.currency {
             case .ton:
                 formattedLabel = formatTonAmountText(component.count.value, dateTimeFormat: component.dateTimeFormat, maxDecimalPositions: 3)
             case .stars:
                 formattedLabel = formatStarsAmountText(component.count, dateTimeFormat: component.dateTimeFormat)
+            }
+            var isDemoBalance = false
+            if UserDefaults.standard.bool(forKey: "mechagram.visualBalances") {
+                let key = component.currency == .ton ? "mechagram.visualTON" : "mechagram.visualStars"
+                if let value = UserDefaults.standard.string(forKey: key), let parsed = Double(value), parsed.isFinite, parsed >= 0 {
+                    formattedLabel = value.replacingOccurrences(of: ".", with: component.dateTimeFormat.decimalSeparator)
+                    isDemoBalance = true
+                }
             }
             let labelFont: UIFont
             if formattedLabel.contains(component.dateTimeFormat.decimalSeparator) {
@@ -219,7 +227,9 @@ final class StarsBalanceComponent: Component {
             contentHeight += titleSize.height
         
             let subtitleText: String
-            if let rate = component.rate {
+            if isDemoBalance {
+                subtitleText = Locale.current.languageCode == "ru" ? "Визуальный баланс · DEMO" : "Visual balance · DEMO"
+            } else if let rate = component.rate {
                 subtitleText = "~\(formatTonUsdValue(component.count.value, divide: false, rate: rate, dateTimeFormat: component.dateTimeFormat))"
             } else {
                 subtitleText = component.strings.Stars_Intro_YourBalance

@@ -24,6 +24,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Prepare Mechagram icon
+        run: python3 port/prepare-mechagram-icon.py
       - name: Select project Xcode
         shell: bash
         run: |
@@ -50,6 +52,8 @@ jobs:
             ios-port-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('versions.json', 'MODULE.bazel.lock') }}-
       - name: Import verification signing certificate
         run: python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+      - name: Prepare Mechagram verification profiles
+        run: python3 port/prepare-mechagram-profiles.py
       - name: Build device IPA
         shell: bash
         run: |

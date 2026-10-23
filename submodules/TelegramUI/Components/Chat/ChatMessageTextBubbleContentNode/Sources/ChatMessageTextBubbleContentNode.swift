@@ -632,6 +632,11 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
                     attributedText = updatedString
                 }
                                 
+                if item.message.attributes.contains(where: { ($0 as? EditedMessageAttribute)?.mechagramDeleted == true }) {
+                    let deletedText = NSMutableAttributedString(attributedString: attributedText)
+                    deletedText.addAttribute(.foregroundColor, value: messageTheme.primaryTextColor.withAlphaComponent(0.55), range: NSRange(location: 0, length: deletedText.length))
+                    attributedText = deletedText
+                }
                 var customTruncationToken: ((UIFont, Bool) -> NSAttributedString?)?
                 var maximumNumberOfLines: Int = 0
                 if item.presentationData.isPreview {
@@ -1838,3 +1843,4 @@ public class ChatMessageTextBubbleContentNode: ChatMessageBubbleContentNode {
         })
     }
 }
+
