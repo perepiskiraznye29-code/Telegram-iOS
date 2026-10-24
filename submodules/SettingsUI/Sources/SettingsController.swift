@@ -123,8 +123,8 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
 }
 
 public func exteraPortSettingsController(context: AccountContext) -> ViewController {
-    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances", "mechagram.visualGifts", "mechagram.confirmLocalGifts"]
-    let defaults = [true, false, false, false, false, true, false, false, true]
+    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances", "mechagram.visualGifts", "mechagram.confirmLocalGifts.v2"]
+    let defaults = [true, false, false, false, false, true, false, false, false]
     let readValues: () -> [Bool] = {
         return keys.enumerated().map { index, key in
             return UserDefaults.standard.object(forKey: key) as? Bool ?? defaults[index]

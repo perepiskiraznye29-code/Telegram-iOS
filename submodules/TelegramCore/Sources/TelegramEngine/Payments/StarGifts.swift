@@ -4,6 +4,30 @@ import MtProtoKit
 import SwiftSignalKit
 import TelegramApi
 
+// MECHAGRAM_GIFT_CONFIRMATION_POLICY_BEGIN
+public func mechagramShouldConfirmLocalGifts(defaults: UserDefaults = .standard) -> Bool {
+    // Versioned preference resets the old opt-out default once, while preserving future choices.
+    return defaults.object(forKey: "mechagram.confirmLocalGifts.v2") as? Bool ?? false
+}
+// MECHAGRAM_GIFT_CONFIRMATION_POLICY_END
+
+public func mechagramIsLocalGiftMessage(_ message: EngineMessage) -> Bool {
+    return message.id.namespace == Namespaces.Message.Local && (message.text.hasPrefix("DEMO ·") || message.text == "mechagram:local-gift:v2")
+}
+
+public func mechagramGiftForRecipient(_ gift: StarGift, peerId: PeerId) -> StarGift {
+    guard case let .unique(value) = gift else { return gift }
+    return .unique(StarGift.UniqueGift(
+        id: value.id, giftId: value.giftId, title: value.title, number: value.number,
+        slug: value.slug, owner: .peerId(peerId), attributes: value.attributes,
+        availability: value.availability, giftAddress: nil, resellAmounts: nil,
+        resellForTonOnly: false, releasedBy: value.releasedBy, valueAmount: value.valueAmount,
+        valueCurrency: value.valueCurrency, valueUsdAmount: value.valueUsdAmount,
+        flags: value.flags, themePeerId: value.themePeerId, peerColor: value.peerColor,
+        hostPeerId: nil, minOfferStars: nil, craftChancePermille: value.craftChancePermille
+    ))
+}
+
 // Local profile entries never have a server reference.
 private func mechagramProfileGiftsKey(accountId: PeerId, peerId: PeerId) -> String {
     return "mechagram.profileGifts.v1.\(accountId.toInt64()).\(peerId.toInt64())"
@@ -11,7 +35,9 @@ private func mechagramProfileGiftsKey(accountId: PeerId, peerId: PeerId) -> Stri
 
 func mechagramReadProfileGifts(accountId: PeerId, peerId: PeerId) -> [ProfileGiftsContext.State.StarGift] {
     guard let data = UserDefaults.standard.data(forKey: mechagramProfileGiftsKey(accountId: accountId, peerId: peerId)) else { return [] }
-    return (try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: data)) ?? []
+    let gifts = (try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: data)) ?? []
+    // Apply to existing v1 entries as well; server gifts never pass through this store.
+    return gifts.map { $0.withGift(mechagramGiftForRecipient($0.gift, peerId: peerId)) }
 }
 
 func mechagramStoreProfileGifts(_ gifts: [ProfileGiftsContext.State.StarGift], accountId: PeerId, peerId: PeerId) -> Bool {
@@ -2876,7 +2902,7 @@ public final class ProfileGiftsContext {
                 
                 try container.encode(self.gift, forKey: .gift)
                 try container.encodeIfPresent(self.reference, forKey: .reference)
-                try container.encodeIfPresent(self.fromPeer?.id, forKey: .fromPeerId)
+                try container.encodeIfPresent(self.fromPeer?.id ?? self._fromPeerId, forKey: .fromPeerId)
                 try container.encode(self.date, forKey: .date)
                 try container.encodeIfPresent(self.text, forKey: .text)
                 try container.encodeIfPresent(self.entities, forKey: .entities)
@@ -3770,6 +3796,7 @@ extension StarGiftReference {
     func apiStarGiftReference(transaction: Transaction) -> Api.InputSavedStarGift? {
         switch self {
         case let .message(messageId):
+            guard messageId.namespace == Namespaces.Message.Cloud else { return nil }
             return .inputSavedStarGiftUser(.init(msgId: messageId.id))
         case let .peer(peerId, id):
             guard let inputPeer = transaction.getPeer(peerId).flatMap({ apiInputPeer($0) }) else {

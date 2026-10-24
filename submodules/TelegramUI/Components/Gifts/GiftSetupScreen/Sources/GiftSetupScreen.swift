@@ -484,11 +484,11 @@ private final class GiftSetupScreenComponent: Component {
                         }
                     })
                 }
-                let alert = textAlertController(context: context, title: "Подарок", text: "Создать локальный подарок за \(price) звёзд? Его видно только на этом устройстве.", actions: [
+                let alert = textAlertController(context: context, title: "Подарок", text: "Добавить подарок за \(price) звёзд?", actions: [
                     TextAlertAction(type: .genericAction, title: "Отмена", action: {}),
                     TextAlertAction(type: .defaultAction, title: "Создать", action: createGift)
                 ])
-                if UserDefaults.standard.object(forKey: "mechagram.confirmLocalGifts") as? Bool ?? true {
+                if mechagramShouldConfirmLocalGifts() {
                     controller.present(alert, in: .window(.root))
                 } else {
                     createGift()

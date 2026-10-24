@@ -300,7 +300,6 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
         guard let item = self.item else {
             return
         }
-        if item.message.id.namespace == Namespaces.Message.Local && item.message.text.hasPrefix("DEMO ·") { return }
         let _ = item.controllerInteraction.openMessage(item.message, OpenMessageParams(mode: .default, progress: self.makeProgress()))
     }
     
@@ -560,6 +559,7 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
                                 hasServiceMessage = false
                             }
                         case let .starGift(gift, convertStars, giftText, giftEntities, _, savedToProfile, converted, upgraded, canUpgrade, upgradeStars, isRefunded, isPrepaidUpgrade, _, channelPeerId, senderPeerId, _, _, _, _, _, toPeerId, _):
+                            let giftText = mechagramIsLocalGiftMessage(item.message) ? nil : giftText
                             var incoming = incoming
                             var convertStars = convertStars
                             if case let .generic(gift) = gift {
@@ -790,12 +790,6 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
                     }
                 }
                 
-                if item.message.id.namespace == Namespaces.Message.Local && item.message.text.hasPrefix("DEMO ·") {
-                    title = "Подарок"
-                    text = "Локальный подарок. Видно только на этом устройстве."
-                    entities = []
-                    buttonTitle = "Только на этом устройстве"
-                }
                 switch months {
                 case 1000:
                     animationName = "GiftDiamond1"
@@ -1578,9 +1572,6 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
     }
 
     override public func tapActionAtPoint(_ point: CGPoint, gesture: TapLongTapOrDoubleTapGesture, isEstimating: Bool) -> ChatMessageBubbleContentTapAction {
-        if let item = self.item, item.message.id.namespace == Namespaces.Message.Local && item.message.text.hasPrefix("DEMO ·") {
-            return ChatMessageBubbleContentTapAction(content: .none)
-        }
         if let (index, attributes) = self.labelNode.attributesAtPoint(CGPoint(x: point.x - self.labelNode.frame.minX, y: point.y - self.labelNode.frame.minY - 10.0)), gesture == .tap {
             if let url = attributes[NSAttributedString.Key(rawValue: TelegramTextAttributes.URL)] as? String {
                 var concealed = true

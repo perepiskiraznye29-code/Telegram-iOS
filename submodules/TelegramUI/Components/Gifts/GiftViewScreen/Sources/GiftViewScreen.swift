@@ -918,6 +918,7 @@ private final class GiftViewSheetContent: CombinedComponent {
         }
         
         func shareGift() {
+            guard !self.subject.mechagramIsLocal else { return }
             guard let arguments = self.subject.arguments, case let .unique(gift) = arguments.gift, let controller = self.getController() as? GiftViewScreen else {
                 return
             }
@@ -1170,6 +1171,7 @@ private final class GiftViewSheetContent: CombinedComponent {
         }
         
         func transferGift() {
+            guard !self.subject.mechagramIsLocal else { return }
             guard let arguments = self.subject.arguments, let controller = self.getController() as? GiftViewScreen, case let .unique(gift) = arguments.gift, let reference = arguments.reference, let transferStars = arguments.transferStars else {
                 return
             }
@@ -1235,6 +1237,7 @@ private final class GiftViewSheetContent: CombinedComponent {
         }
         
         func resellGift(update: Bool = false) {
+            guard !self.subject.mechagramIsLocal else { return }
             guard let arguments = self.subject.arguments, case let .unique(gift) = arguments.gift, let controller = self.getController() as? GiftViewScreen else {
                 return
             }
@@ -1515,6 +1518,7 @@ private final class GiftViewSheetContent: CombinedComponent {
         }
         
         func openMore() {
+            guard !self.subject.mechagramIsLocal else { return }
             guard let controller = self.getController() as? GiftViewScreen else {
                 return
             }
@@ -3940,7 +3944,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                 }
                 
                 if let uniqueGift {
-                    if isMyOwnedUniqueGift || isMyHostedUniqueGift || isChannelGift {
+                    if (isMyOwnedUniqueGift || isMyHostedUniqueGift || isChannelGift) && !subject.mechagramIsLocal {
                         var canTransfer = true
                         var canResell = true
                         
@@ -5336,7 +5340,7 @@ private final class GiftViewSheetContent: CombinedComponent {
             ))
             
             var rightControlItems: [GlassControlGroupComponent.Item] = []
-            if uniqueGift != nil && !showWearPreview && !isDismantled {
+            if uniqueGift != nil && !showWearPreview && !isDismantled && !subject.mechagramIsLocal {
                 if let _ = component.subject.arguments?.canCraftDate {
                     rightControlItems.append(GlassControlGroupComponent.Item(
                         id: AnyHashable("craft"),
@@ -5581,6 +5585,14 @@ public class GiftViewScreen: ViewControllerComponentContainer {
         case upgradePreview(StarGift.Gift, [StarGift.UniqueGift.Attribute], String)
         case wearPreview(StarGift, [StarGift.UniqueGift.Attribute]?)
         
+        var mechagramIsLocal: Bool {
+            switch self {
+            case let .message(message): return mechagramIsLocalGiftMessage(message)
+            case let .profileGift(_, gift): return gift.reference == nil
+            default: return false
+            }
+        }
+
         var arguments: (
             peerId: EnginePeer.Id?,
             fromPeerId: EnginePeer.Id?,
@@ -5620,7 +5632,7 @@ public class GiftViewScreen: ViewControllerComponentContainer {
                 if let action = message.media.first(where: { $0 is TelegramMediaAction }) as? TelegramMediaAction {
                     switch action.action {
                     case let .starGift(gift, convertStars, text, entities, nameHidden, savedToProfile, converted, upgraded, canUpgrade, upgradeStars, isRefunded, _, upgradeMessageId, peerId, senderId, savedId, prepaidUpgradeHash, giftMessageId, upgradeSeparate, _, toPeerId, number):
-                        var reference: StarGiftReference
+                        var reference: StarGiftReference?
                         if let peerId, let giftMessageId {
                             reference = .message(messageId: EngineMessage.Id(peerId: peerId, namespace: Namespaces.Message.Cloud, id: giftMessageId))
                         } else if let peerId, let savedId {
@@ -5629,15 +5641,18 @@ public class GiftViewScreen: ViewControllerComponentContainer {
                             reference = .message(messageId: message.id)
                         }
                         
+                        if self.mechagramIsLocal { reference = nil }
                         let fromPeerId = senderId ?? message.author?.id
-                        return (message.id.peerId, fromPeerId, message.author?.debugDisplayTitle, message.author?.compactDisplayTitle, message.id, reference, message.flags.contains(.Incoming), gift, message.timestamp, convertStars, text, entities, nameHidden, savedToProfile, nil, converted, upgraded, isRefunded, canUpgrade, upgradeStars, nil, nil, nil, upgradeMessageId, nil, nil, prepaidUpgradeHash, upgradeSeparate, nil, toPeerId, number, nil)
+                        return (message.id.peerId, fromPeerId, message.author?.debugDisplayTitle, message.author?.compactDisplayTitle, message.id, reference, message.flags.contains(.Incoming), gift, message.timestamp, convertStars, self.mechagramIsLocal ? nil : text, entities, nameHidden, savedToProfile, nil, converted, upgraded, isRefunded, canUpgrade, upgradeStars, nil, nil, nil, upgradeMessageId, nil, nil, prepaidUpgradeHash, upgradeSeparate, nil, toPeerId, number, nil)
                     case let .starGiftUnique(gift, isUpgrade, isTransferred, savedToProfile, canExportDate, transferStars, _, _, peerId, senderId, savedId, _, canTransferDate, canResaleDate, dropOriginalDetailsStars, _, _, canCraftDate, _):
-                        var reference: StarGiftReference
+                        var reference: StarGiftReference?
                         if let peerId, let savedId {
                             reference = .peer(peerId: peerId, id: savedId)
                         } else {
                             reference = .message(messageId: message.id)
                         }
+                        if self.mechagramIsLocal { reference = nil }
+                        let gift = self.mechagramIsLocal ? mechagramGiftForRecipient(gift, peerId: message.id.peerId) : gift
                         var incoming = false
                         if isUpgrade {
                             if message.author?.id != message.id.peerId {
@@ -5651,6 +5666,7 @@ public class GiftViewScreen: ViewControllerComponentContainer {
                             incoming = message.flags.contains(.Incoming)
                         }
                         
+                        if self.mechagramIsLocal { incoming = message.flags.contains(.Incoming) }
                         var resellAmounts: [CurrencyAmount]?
                         var number: Int32?
                         if case let .unique(uniqueGift) = gift {
@@ -5686,7 +5702,7 @@ public class GiftViewScreen: ViewControllerComponentContainer {
                 } else if let numberValue = gift.number {
                     number = numberValue
                 }
-                return (peerId, gift.fromPeer?.id, gift.fromPeer?.debugDisplayTitle, gift.fromPeer?.compactDisplayTitle, messageId, gift.reference, false, gift.gift, gift.date, gift.convertStars, gift.text, gift.entities, gift.nameHidden, gift.savedToProfile, gift.pinnedToTop, false, false, false, gift.canUpgrade, gift.upgradeStars, gift.transferStars, resellAmounts, gift.canExportDate, nil, gift.canTransferDate, gift.canResaleDate, gift.prepaidUpgradeHash, gift.upgradeSeparate, gift.dropOriginalDetailsStars, nil, number, gift.canCraftAt)
+                return (peerId, gift.fromPeer?.id, gift.fromPeer?.debugDisplayTitle, gift.fromPeer?.compactDisplayTitle, messageId, gift.reference, false, gift.gift, gift.date, gift.convertStars, self.mechagramIsLocal ? nil : gift.text, gift.entities, gift.nameHidden, gift.savedToProfile, gift.pinnedToTop, false, false, false, gift.canUpgrade, gift.upgradeStars, gift.transferStars, resellAmounts, gift.canExportDate, nil, gift.canTransferDate, gift.canResaleDate, gift.prepaidUpgradeHash, gift.upgradeSeparate, gift.dropOriginalDetailsStars, nil, number, gift.canCraftAt)
             case .soldOutGift:
                 return nil
             case .upgradePreview:

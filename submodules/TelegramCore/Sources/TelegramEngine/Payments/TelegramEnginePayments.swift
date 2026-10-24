@@ -29,19 +29,20 @@ public extension TelegramEngine {
                 let isTon = price.currency == .ton
                 let key = isTon ? "mechagram.visualTON" : "mechagram.visualStars"
                 guard let raw = settings.string(forKey: key), let remaining = mechagramDemoBalanceAfterPurchase(raw: raw, value: price.amount.value, nanos: price.amount.nanos, isTon: isTon) else { return false }
-                let marker = "DEMO · Локальный подарок. Видно только на этом устройстве."
+                let gift = mechagramGiftForRecipient(gift, peerId: peerId)
+                let marker = "mechagram:local-gift:v2"
                 let action: TelegramMediaAction
                 switch gift {
                 case .generic:
-                    action = TelegramMediaAction(action: .starGift(gift: gift, convertStars: nil, text: marker, entities: [], nameHidden: false, savedToProfile: false, converted: false, upgraded: false, canUpgrade: false, upgradeStars: nil, isRefunded: false, isPrepaidUpgrade: false, upgradeMessageId: nil, peerId: nil, senderId: nil, savedId: nil, prepaidUpgradeHash: nil, giftMessageId: nil, upgradeSeparate: false, isAuctionAcquired: false, toPeerId: peerId, number: nil))
+                    action = TelegramMediaAction(action: .starGift(gift: gift, convertStars: nil, text: nil, entities: [], nameHidden: false, savedToProfile: true, converted: false, upgraded: false, canUpgrade: false, upgradeStars: nil, isRefunded: false, isPrepaidUpgrade: false, upgradeMessageId: nil, peerId: nil, senderId: nil, savedId: nil, prepaidUpgradeHash: nil, giftMessageId: nil, upgradeSeparate: false, isAuctionAcquired: false, toPeerId: peerId, number: nil))
                 case .unique:
-                    action = TelegramMediaAction(action: .starGiftUnique(gift: gift, isUpgrade: false, isTransferred: false, savedToProfile: false, canExportDate: nil, transferStars: nil, isRefunded: false, isPrepaidUpgrade: false, peerId: nil, senderId: nil, savedId: nil, resaleAmount: nil, canTransferDate: nil, canResaleDate: nil, dropOriginalDetailsStars: nil, assigned: false, fromOffer: false, canCraftAt: nil, isCrafted: false))
+                    action = TelegramMediaAction(action: .starGiftUnique(gift: gift, isUpgrade: false, isTransferred: true, savedToProfile: true, canExportDate: nil, transferStars: nil, isRefunded: false, isPrepaidUpgrade: false, peerId: nil, senderId: nil, savedId: nil, resaleAmount: nil, canTransferDate: nil, canResaleDate: nil, dropOriginalDetailsStars: nil, assigned: false, fromOffer: false, canCraftAt: nil, isCrafted: false))
                 }
                 var profileGifts = mechagramReadProfileGifts(accountId: self.account.peerId, peerId: peerId)
                 profileGifts.insert(ProfileGiftsContext.State.StarGift(
                     gift: gift, reference: nil,
                     fromPeer: transaction.getPeer(self.account.peerId).map(EnginePeer.init),
-                    date: Int32(Date().timeIntervalSince1970), text: "Только на этом устройстве", entities: [],
+                    date: Int32(Date().timeIntervalSince1970), text: nil, entities: [],
                     nameHidden: false, savedToProfile: true, pinnedToTop: false, convertStars: nil,
                     canUpgrade: false, canExportDate: nil, upgradeStars: nil, transferStars: nil,
                     canTransferDate: nil, canResaleDate: nil, collectionIds: nil, prepaidUpgradeHash: nil,

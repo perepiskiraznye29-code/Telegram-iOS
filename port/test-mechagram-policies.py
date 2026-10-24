@@ -5,6 +5,7 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 sections = [
+    ("submodules/TelegramCore/Sources/TelegramEngine/Payments/StarGifts.swift", "GIFT_CONFIRMATION"),
     ("submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift", "RETENTION"),
     ("submodules/TelegramCore/Sources/TelegramEngine/Payments/TelegramEnginePayments.swift", "DEMO"),
 ]
@@ -26,7 +27,17 @@ assert(mechagramDemoBalanceAfterPurchase(raw: "0", value: 25, nanos: 0, isTon: f
 assert(mechagramDemoBalanceAfterPurchase(raw: "100", value: -1, nanos: 0, isTon: false) == nil)
 assert(mechagramDemoBalanceAfterPurchase(raw: "NaN", value: 1, nanos: 0, isTon: false) == nil)
 assert(mechagramDemoBalanceAfterPurchase(raw: "100", value: 1, nanos: 1_000_000_000, isTon: false) == nil)
-print("Mechagram: 13 production policy cases passed")
+let giftDefaultsName = "mechagram-tests-" + UUID().uuidString
+let giftDefaults = UserDefaults(suiteName: giftDefaultsName)!
+assert(!mechagramShouldConfirmLocalGifts(defaults: giftDefaults))
+giftDefaults.set(true, forKey: "mechagram.confirmLocalGifts")
+assert(!mechagramShouldConfirmLocalGifts(defaults: giftDefaults))
+giftDefaults.set(true, forKey: "mechagram.confirmLocalGifts.v2")
+assert(mechagramShouldConfirmLocalGifts(defaults: giftDefaults))
+giftDefaults.set(false, forKey: "mechagram.confirmLocalGifts.v2")
+assert(!mechagramShouldConfirmLocalGifts(defaults: giftDefaults))
+giftDefaults.removePersistentDomain(forName: giftDefaultsName)
+print("Mechagram: 17 production policy cases passed")
 '''
 with tempfile.TemporaryDirectory() as directory:
     path = Path(directory) / "main.swift"

@@ -154,11 +154,11 @@ public func buyStarGiftImpl(
                     }
                 })
             }
-            let alert = textAlertController(context: context, title: "Локальная копия подарка", text: "Создать локальную копию подарка? Его видно только на этом устройстве; настоящий подарок остаётся у владельца.", actions: [
+            let alert = textAlertController(context: context, title: "Подарок", text: "Добавить подарок получателю?", actions: [
                 TextAlertAction(type: .genericAction, title: "Отмена", action: { beforeCompletion() }),
                 TextAlertAction(type: .defaultAction, title: "Создать", action: createGift)
             ])
-            if UserDefaults.standard.object(forKey: "mechagram.confirmLocalGifts") as? Bool ?? true {
+            if mechagramShouldConfirmLocalGifts() {
                 controller.present(alert, in: .window(.root))
             } else {
                 createGift()
