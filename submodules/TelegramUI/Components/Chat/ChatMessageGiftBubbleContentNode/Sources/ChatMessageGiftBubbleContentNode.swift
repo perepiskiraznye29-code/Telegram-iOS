@@ -559,7 +559,7 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
                                 hasServiceMessage = false
                             }
                         case let .starGift(gift, convertStars, giftText, giftEntities, _, savedToProfile, converted, upgraded, canUpgrade, upgradeStars, isRefunded, isPrepaidUpgrade, _, channelPeerId, senderPeerId, _, _, _, _, _, toPeerId, _):
-                            let giftText = mechagramIsLocalGiftMessage(item.message) ? nil : giftText
+                            let giftText = mechagramIsLocalGiftMessage(EngineMessage(item.message)) ? nil : giftText
                             var incoming = incoming
                             var convertStars = convertStars
                             if case let .generic(gift) = gift {
