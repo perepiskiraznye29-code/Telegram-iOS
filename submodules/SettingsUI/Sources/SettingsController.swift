@@ -123,8 +123,8 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
 }
 
 public func exteraPortSettingsController(context: AccountContext) -> ViewController {
-    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances"]
-    let defaults = [true, false, false, false, false, true, false]
+    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances", "mechagram.visualGifts"]
+    let defaults = [true, false, false, false, false, true, false, false]
     let readValues: () -> [Bool] = {
         return keys.enumerated().map { index, key in
             return UserDefaults.standard.object(forKey: key) as? Bool ?? defaults[index]
@@ -176,8 +176,8 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
     |> map { presentationData, values, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let isRussian = (Locale.current.languageCode ?? "en") == "ru"
         let titles = isRussian
-            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M", "Сохранять удалённые сообщения", "Визуальные балансы · DEMO"]
-            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M", "Keep deleted messages", "Visual balances · DEMO"]
+            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M", "Сохранять удалённые сообщения", "Визуальные балансы · DEMO", "Локальные подарки · DEMO"]
+            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M", "Keep deleted messages", "Visual balances · DEMO", "Local gifts · DEMO"]
         let title = "Mechagram"
         let footer = isRussian
             ? "После изменения перезапустите приложение. Параметры действуют для всех аккаунтов на этом устройстве."
@@ -188,7 +188,7 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
         }
         entries.append(.balance(0, "Stars · DEMO: " + (UserDefaults.standard.string(forKey: "mechagram.visualStars") ?? "—"), false))
         entries.append(.balance(1, "TON · DEMO: " + (UserDefaults.standard.string(forKey: "mechagram.visualTON") ?? "—"), true))
-        entries.append(.footer(footer + (isRussian ? " Удалённые сообщения сохраняются только если уже получены клиентом. Секретные чаты и таймеры не сохраняются. Балансы DEMO не дают права на покупки." : " Only previously received cloud messages can be retained. Secret chats and timers are excluded. DEMO balances cannot be spent.")))
+        entries.append(.footer(footer + (isRussian ? " Сохраняются уже полученные облачные сообщения. Секретные чаты и исчезающие медиа исключены. DEMO-подарки видны только на этом устройстве и списывают только визуальный баланс. Настоящие покупки используют настоящий баланс." : " Previously received cloud messages are retained. Secret chats and disappearing media are excluded. DEMO gifts are visible only on this device and spend the visual balance. Real purchases use the real balance.")))
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
         let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: entries, style: .blocks, animateChanges: false)
         return (controllerState, (listState, arguments))

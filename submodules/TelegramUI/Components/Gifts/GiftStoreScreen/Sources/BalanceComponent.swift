@@ -95,9 +95,11 @@ final class BalanceComponent: Component {
             let presentationData = component.context.sharedContext.currentPresentationData.with { $0 }
 
             var rawString: String = ""
-            let starsBalanceString = "**⭐️\(presentationStringsFormattedNumber(Int32(clamping: self.starsBalance), presentationData.dateTimeFormat.groupingSeparator))**"
-            if self.tonBalance > 0 {
-                let tonBalanceString = "**💎\(formatTonAmountText(self.tonBalance, dateTimeFormat: presentationData.dateTimeFormat))**"
+            let visualStars = mechagramVisualBalance(isTon: false, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)
+            let visualTon = mechagramVisualBalance(isTon: true, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)
+            let starsBalanceString = "**⭐️\(visualStars.map { $0 + " · DEMO" } ?? presentationStringsFormattedNumber(Int32(clamping: self.starsBalance), presentationData.dateTimeFormat.groupingSeparator))**"
+            if visualTon != nil || self.tonBalance > 0 {
+                let tonBalanceString = "**💎\(visualTon.map { $0 + " · DEMO" } ?? formatTonAmountText(self.tonBalance, dateTimeFormat: presentationData.dateTimeFormat))**"
                 rawString = starsBalanceString + "\n" + tonBalanceString
             } else {
                 rawString = presentationData.strings.Stars_Purchase_Balance + "\n" + starsBalanceString

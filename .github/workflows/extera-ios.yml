@@ -42,6 +42,8 @@ jobs:
           test "$(git hash-object submodules/TelegramCore/Sources/Network/Network.swift)" = "5410e714b2501d8233d4c55e091b81f263f4c384"
           test "$(git hash-object submodules/MtProtoKit/Sources/MTContext.m)" = "6f26b62be7e8b18ac294783c68c9046a5665f806"
           test "$(git hash-object submodules/MtProtoKit/Sources/MTDatacenterAuthMessageService.m)" = "882d6c6118f6876febbcc0356bcef825fe384d4a"
+      - name: Test Mechagram retention and local gift policies
+        run: python3 port/test-mechagram-policies.py
       - name: Restore compilation cache
         id: cache
         uses: actions/cache/restore@v4

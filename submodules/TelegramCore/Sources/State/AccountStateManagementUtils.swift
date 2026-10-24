@@ -7,11 +7,33 @@ import EncryptionProvider
 
 // Retain only cloud messages already present locally; expiration and secret chats
 // continue through their normal deletion paths.
-private func mechagramRetainDeletedMessage(transaction: Transaction, id: MessageId) -> Bool {
-    guard UserDefaults.standard.object(forKey: "mechagram.keepDeleted") as? Bool ?? true,
-          id.namespace == Namespaces.Message.Cloud,
-          let message = transaction.getMessage(id),
-          !message.attributes.contains(where: { $0 is AutoremoveTimeoutMessageAttribute || $0 is AutoclearTimeoutMessageAttribute }) else {
+// MECHAGRAM_RETENTION_POLICY_BEGIN
+func mechagramDeletionRetentionAllowed(isCloud: Bool, enabled: Bool, now: Int64, expiresAt: Int64?, viewOnce: Bool) -> Bool {
+    return enabled && isCloud && !viewOnce && (expiresAt == nil || expiresAt! > now)
+}
+// MECHAGRAM_RETENTION_POLICY_END
+func mechagramRetainDeletedMessage(transaction: Transaction, id: MessageId) -> Bool {
+    guard let message = transaction.getMessage(id) else {
+        Logger.shared.log("MechagramRetention", "skip: message not present locally")
+        return false
+    }
+    let now = Int64(Date().timeIntervalSince1970)
+    var expiresAt: Int64?
+    var viewOnce = false
+    for attribute in message.attributes {
+        if let attribute = attribute as? AutoremoveTimeoutMessageAttribute, attribute.timeout > 0 {
+            viewOnce = viewOnce || attribute.timeout == viewOnceTimeout
+            if let begin = attribute.countdownBeginTime {
+                let deadline = Int64(begin) + Int64(attribute.timeout)
+                expiresAt = min(expiresAt ?? deadline, deadline)
+            }
+        } else if let attribute = attribute as? AutoclearTimeoutMessageAttribute, attribute.timeout > 0 {
+            // Disappearing media follows its original read/view lifetime.
+            viewOnce = true
+        }
+    }
+    guard mechagramDeletionRetentionAllowed(isCloud: id.namespace == Namespaces.Message.Cloud && id.peerId.namespace != Namespaces.Peer.SecretChat, enabled: UserDefaults.standard.object(forKey: "mechagram.keepDeleted") as? Bool ?? true, now: now, expiresAt: expiresAt, viewOnce: viewOnce) else {
+        Logger.shared.log("MechagramRetention", "skip: disabled, non-cloud, or expired/disappearing message")
         return false
     }
     if message.attributes.contains(where: { ($0 as? EditedMessageAttribute)?.mechagramDeleted == true }) {
@@ -23,6 +45,7 @@ private func mechagramRetainDeletedMessage(transaction: Transaction, id: Message
         attributes.append(EditedMessageAttribute(date: edited?.date ?? currentMessage.timestamp, isHidden: true, mechagramDeleted: true))
         return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init), authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
     })
+    Logger.shared.log("MechagramRetention", "retained received cloud message")
     return true
 }
 

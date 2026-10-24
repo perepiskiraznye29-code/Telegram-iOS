@@ -140,9 +140,9 @@ public final class StarsBalanceOverlayComponent: Component {
                 let balanceString: String
                 switch component.currency {
                 case .stars:
-                    balanceString = "**⭐️\(balance)**"
+                    balanceString = "**⭐️\(mechagramVisualBalance(isTon: false, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator).map { $0 + " · DEMO" } ?? balance)**"
                 case .ton:
-                    balanceString = "**💎\(formatTonAmountText(self.tonBalance, dateTimeFormat: presentationData.dateTimeFormat))**"
+                    balanceString = "**💎\(mechagramVisualBalance(isTon: true, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator).map { $0 + " · DEMO" } ?? formatTonAmountText(self.tonBalance, dateTimeFormat: presentationData.dateTimeFormat))**"
                 }
                 rawString = presentationData.strings.StarsBalance_YourBalance(balanceString).string
             } else {

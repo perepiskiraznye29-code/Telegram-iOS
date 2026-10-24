@@ -464,12 +464,33 @@ private final class GiftSetupScreenComponent: Component {
         }
         
         private func proceedWithStarGift() {
-            guard let component = self.component, let environment = self.environment, let starsContext = component.context.starsContext, let starsState = starsContext.currentState else {
+            guard let component = self.component, let environment = self.environment else {
                 return
             }
             
             let context = component.context
             let peerId = component.peerId
+
+            if UserDefaults.standard.bool(forKey: "mechagram.visualBalances"), UserDefaults.standard.bool(forKey: "mechagram.visualGifts"), case let .starGift(gift, _) = component.subject, let controller = environment.controller() {
+                let price = gift.price + (self.includeUpgrade ? (gift.upgradeStars ?? 0) : 0)
+                let alert = textAlertController(context: context, title: "Подарок · DEMO", text: "Создать локальный подарок за \(price) визуальных звёзд? Его видно только на этом устройстве.", actions: [
+                    TextAlertAction(type: .genericAction, title: "Отмена", action: {}),
+                    TextAlertAction(type: .defaultAction, title: "Создать DEMO", action: {
+                        let _ = (context.engine.payments.mechagramSimulateGift(peerId: peerId, gift: .generic(gift), price: CurrencyAmount(amount: StarsAmount(value: price, nanos: 0), currency: .stars)) |> deliverOnMainQueue).start(next: { success in
+                            if success, let navigation = controller.navigationController as? NavigationController {
+                                var controllers = navigation.viewControllers.filter { !($0 is GiftSetupScreen) && !($0 is GiftOptionsScreenProtocol) }
+                                controllers.append(context.sharedContext.makeChatController(context: context, chatLocation: .peer(id: peerId), subject: nil, botStart: nil, mode: .standard(.default), params: nil))
+                                navigation.setViewControllers(controllers, animated: true)
+                            } else {
+                                controller.present(textAlertController(context: context, title: "DEMO", text: "Недостаточно визуальных звёзд или получатель не является личным чатом.", actions: [TextAlertAction(type: .defaultAction, title: "OK", action: {})]), in: .window(.root))
+                            }
+                        })
+                    })
+                ])
+                controller.present(alert, in: .window(.root))
+                return
+            }
+            guard let starsContext = context.starsContext, let starsState = starsContext.currentState else { return }
             
             var textInputText = NSAttributedString()
             if let inputPanelView = self.inputPanel.view as? MessageInputPanelComponent.View, case let .text(text) = inputPanelView.getSendMessageInput() {
@@ -1507,7 +1528,7 @@ private final class GiftSetupScreenComponent: Component {
             case let .premium(product):
                 let balance = component.context.starsContext?.currentState?.balance.value ?? 0
                 if let starsPrice = product.starsPrice { //}, balance >= starsPrice {
-                    let balanceString = presentationStringsFormattedNumber(Int32(balance), environment.dateTimeFormat.groupingSeparator)
+                    let balanceString = mechagramVisualBalance(isTon: false, decimalSeparator: environment.dateTimeFormat.decimalSeparator).map { $0 + " · DEMO" } ?? presentationStringsFormattedNumber(Int32(clamping: balance), environment.dateTimeFormat.groupingSeparator)
                     
                     let starsFooterRawString = environment.strings.Gift_Send_PayWithStars_Info("# \(balanceString)").string
                     let starsFooterText = NSMutableAttributedString(attributedString: parseMarkdownIntoAttributedString(starsFooterRawString, attributes: footerAttributes))

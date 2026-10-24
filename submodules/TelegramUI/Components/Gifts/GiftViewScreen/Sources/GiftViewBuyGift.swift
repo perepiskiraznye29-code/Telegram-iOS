@@ -140,6 +140,27 @@ public func buyStarGiftImpl(
             })
         }
         
+        if UserDefaults.standard.bool(forKey: "mechagram.visualBalances"), UserDefaults.standard.bool(forKey: "mechagram.visualGifts") {
+            guard let controller = getController() else { return }
+            let alert = textAlertController(context: context, title: "Покупка · DEMO", text: "Создать локальную копию подарка? Его видно только на этом устройстве; настоящий подарок остаётся у владельца.", actions: [
+                TextAlertAction(type: .genericAction, title: "Отмена", action: { beforeCompletion() }),
+                TextAlertAction(type: .defaultAction, title: "Создать DEMO", action: {
+                    let _ = (context.engine.payments.mechagramSimulateGift(peerId: recipientPeerId, gift: .unique(uniqueGift), price: acceptedPrice ?? resellAmount) |> deliverOnMainQueue).start(next: { success in
+                        beforeCompletion()
+                        updateProgress(false)
+                        if success, let navigation = controller.navigationController as? NavigationController {
+                            let chat = context.sharedContext.makeChatController(context: context, chatLocation: .peer(id: recipientPeerId), subject: nil, botStart: nil, mode: .standard(.default), params: nil)
+                            navigation.pushViewController(chat)
+                        } else {
+                            controller.present(textAlertController(context: context, title: "DEMO", text: "Недостаточно визуального баланса или получатель не является личным чатом.", actions: [TextAlertAction(type: .defaultAction, title: "OK", action: {})]), in: .window(.root))
+                        }
+                    })
+                })
+            ])
+            controller.present(alert, in: .window(.root))
+            return
+        }
+
         if resellAmount.currency == .stars, let starsContext = context.starsContext, let starsState = context.starsContext?.currentState, starsState.balance < resellAmount.amount {
             let _ = (starsTopUpOptions
              |> filter { $0 != nil }

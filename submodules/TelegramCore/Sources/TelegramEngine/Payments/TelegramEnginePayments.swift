@@ -2,12 +2,46 @@ import Foundation
 import SwiftSignalKit
 import Postbox
 
+// MECHAGRAM_DEMO_POLICY_BEGIN
+func mechagramDemoBalanceAfterPurchase(raw: String, value: Int64, nanos: Int32, isTon: Bool) -> String? {
+    guard let balance = Decimal(string: raw, locale: Locale(identifier: "en_US_POSIX")), !balance.isNaN, balance >= 0, balance <= 1_000_000_000_000, value >= 0, nanos >= 0, nanos < 1_000_000_000 else { return nil }
+    let cost = (Decimal(value) + Decimal(nanos) / 1_000_000_000) / (isTon ? 1_000_000_000 : 1)
+    guard balance >= cost else { return nil }
+    return NSDecimalNumber(decimal: balance - cost).stringValue
+}
+// MECHAGRAM_DEMO_POLICY_END
+
 public extension TelegramEngine {
     final class Payments {
         private let account: Account
         
         init(account: Account) {
             self.account = account
+        }
+
+        // Local preview only: no outgoing queue, payment form or network request.
+        public func mechagramSimulateGift(peerId: EnginePeer.Id, gift: StarGift, price: CurrencyAmount) -> Signal<Bool, NoError> {
+            return self.account.postbox.transaction { transaction -> Bool in
+                let settings = UserDefaults.standard
+                guard settings.bool(forKey: "mechagram.visualBalances"), settings.bool(forKey: "mechagram.visualGifts"), peerId.namespace == Namespaces.Peer.CloudUser else {
+                    return false
+                }
+                let isTon = price.currency == .ton
+                let key = isTon ? "mechagram.visualTON" : "mechagram.visualStars"
+                guard let raw = settings.string(forKey: key), let remaining = mechagramDemoBalanceAfterPurchase(raw: raw, value: price.amount.value, nanos: price.amount.nanos, isTon: isTon) else { return false }
+                let marker = "DEMO · Локальный подарок. Видно только на этом устройстве."
+                let action: TelegramMediaAction
+                switch gift {
+                case .generic:
+                    action = TelegramMediaAction(action: .starGift(gift: gift, convertStars: nil, text: marker, entities: [], nameHidden: false, savedToProfile: false, converted: false, upgraded: false, canUpgrade: false, upgradeStars: nil, isRefunded: false, isPrepaidUpgrade: false, upgradeMessageId: nil, peerId: nil, senderId: nil, savedId: nil, prepaidUpgradeHash: nil, giftMessageId: nil, upgradeSeparate: false, isAuctionAcquired: false, toPeerId: peerId, number: nil))
+                case .unique:
+                    action = TelegramMediaAction(action: .starGiftUnique(gift: gift, isUpgrade: false, isTransferred: false, savedToProfile: false, canExportDate: nil, transferStars: nil, isRefunded: false, isPrepaidUpgrade: false, peerId: nil, senderId: nil, savedId: nil, resaleAmount: nil, canTransferDate: nil, canResaleDate: nil, dropOriginalDetailsStars: nil, assigned: false, fromOffer: false, canCraftAt: nil, isCrafted: false))
+                }
+                let message = StoreMessage(id: .Partial(peerId, Namespaces.Message.Local), customStableId: nil, globallyUniqueId: Int64.random(in: 1 ... Int64.max), groupingKey: nil, threadId: nil, timestamp: Int32(Date().timeIntervalSince1970), flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: self.account.peerId, text: marker, attributes: [], media: [action])
+                let _ = transaction.addMessages([message], location: .UpperHistoryBlock)
+                settings.set(remaining, forKey: key)
+                return true
+            }
         }
         
         public func getBankCardInfo(cardNumber: String) -> Signal<BankCardInfo?, NoError> {

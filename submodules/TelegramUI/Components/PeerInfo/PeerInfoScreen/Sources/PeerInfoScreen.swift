@@ -7105,6 +7105,10 @@ public final class PeerInfoScreenImpl: ViewController, PeerInfoScreen, KeyShortc
     
     override public func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+
+        if self.isSettings {
+            self.controllerNode.updatePresentationData(self.context.sharedContext.currentPresentationData.with { $0 })
+        }
         
         DispatchQueue.main.async { [weak self] in
             self?.didAppear = true

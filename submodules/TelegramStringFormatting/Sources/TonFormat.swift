@@ -5,6 +5,16 @@ import TelegramPresentationData
 
 let walletAddressLength: Int = 48
 
+// Display-only override: callers retain real values for every operation.
+public func mechagramVisualBalance(isTon: Bool, decimalSeparator: String) -> String? {
+    guard UserDefaults.standard.bool(forKey: "mechagram.visualBalances"),
+          let raw = UserDefaults.standard.string(forKey: isTon ? "mechagram.visualTON" : "mechagram.visualStars"),
+          let amount = Double(raw), amount.isFinite, amount >= 0, amount <= 1_000_000_000_000 else {
+        return nil
+    }
+    return raw.replacingOccurrences(of: ".", with: decimalSeparator)
+}
+
 public func formatTonAddress(_ address: String) -> String {
     var address = address
     address.insert("\n", at: address.index(address.startIndex, offsetBy: address.count / 2))

@@ -261,10 +261,11 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         }))
     }
     if let starsState = data.starsState {
-        if !isPremiumDisabled || abs(starsState.balance.value) > 0 {
+        let visualBalance = mechagramVisualBalance(isTon: false, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)
+        if visualBalance != nil || !isPremiumDisabled || abs(starsState.balance.value) > 0 {
             let balanceText: NSAttributedString
-            if abs(starsState.balance.value) > 0 {
-                let formattedLabel = formatStarsAmountText(starsState.balance, dateTimeFormat: presentationData.dateTimeFormat)
+            if visualBalance != nil || abs(starsState.balance.value) > 0 {
+                let formattedLabel = visualBalance.map { $0 + " · DEMO" } ?? formatStarsAmountText(starsState.balance, dateTimeFormat: presentationData.dateTimeFormat)
                 let smallLabelFont = Font.regular(floor(presentationData.listsFontSize.itemListBaseFontSize / 17.0 * 13.0))
                 let labelFont = Font.regular(presentationData.listsFontSize.itemListBaseFontSize)
                 let labelColor = presentationData.theme.list.itemSecondaryTextColor
@@ -278,10 +279,11 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         }
     }
     if let tonState = data.tonState {
-        if abs(tonState.balance.value) > 0 {
+        let visualBalance = mechagramVisualBalance(isTon: true, decimalSeparator: presentationData.dateTimeFormat.decimalSeparator)
+        if visualBalance != nil || abs(tonState.balance.value) > 0 {
             let balanceText: NSAttributedString
-            if abs(tonState.balance.value) > 0 {
-                let formattedLabel = formatTonAmountText(tonState.balance.value, dateTimeFormat: presentationData.dateTimeFormat)
+            if visualBalance != nil || abs(tonState.balance.value) > 0 {
+                let formattedLabel = visualBalance.map { $0 + " · DEMO" } ?? formatTonAmountText(tonState.balance.value, dateTimeFormat: presentationData.dateTimeFormat)
                 let smallLabelFont = Font.regular(floor(presentationData.listsFontSize.itemListBaseFontSize / 17.0 * 13.0))
                 let labelFont = Font.regular(presentationData.listsFontSize.itemListBaseFontSize)
                 let labelColor = presentationData.theme.list.itemSecondaryTextColor
