@@ -539,11 +539,12 @@ final class StarsTransactionsScreenComponent: Component {
                 starTransition.setBounds(view: titleView, bounds: CGRect(origin: .zero, size: titleSize))
             }
             
+            let visualBalance = mechagramVisualBalance(isTon: component.starsContext.ton, decimalSeparator: environment.dateTimeFormat.decimalSeparator)
             let topBalanceTitleSize = self.topBalanceTitleView.update(
                 transition: .immediate,
                 component: AnyComponent(MultilineTextComponent(
                     text: .plain(NSAttributedString(
-                        string: UserDefaults.standard.bool(forKey: "mechagram.visualBalances") ? "DEMO" : environment.strings.Stars_Intro_Balance,
+                        string: visualBalance != nil ? "DEMO" : environment.strings.Stars_Intro_Balance,
                         font: Font.regular(14.0),
                         textColor: environment.theme.actionSheet.primaryTextColor
                     )),
@@ -559,12 +560,7 @@ final class StarsTransactionsScreenComponent: Component {
             } else {
                 formattedBalance = formatStarsAmountText(self.starsState?.balance ?? StarsAmount.zero, dateTimeFormat: environment.dateTimeFormat)
             }
-            if UserDefaults.standard.bool(forKey: "mechagram.visualBalances") {
-                let key = component.starsContext.ton ? "mechagram.visualTON" : "mechagram.visualStars"
-                if let value = UserDefaults.standard.string(forKey: key), let parsed = Double(value), parsed.isFinite, parsed >= 0 {
-                    formattedBalance = value.replacingOccurrences(of: ".", with: environment.dateTimeFormat.decimalSeparator)
-                }
-            }
+            if let visualBalance { formattedBalance = visualBalance }
             let smallLabelFont = Font.regular(11.0)
             let labelFont = Font.semibold(14.0)
             let balanceText = tonAmountAttributedString(formattedBalance, integralFont: labelFont, fractionalFont: smallLabelFont, color: environment.theme.actionSheet.primaryTextColor, decimalSeparator: environment.dateTimeFormat.decimalSeparator)

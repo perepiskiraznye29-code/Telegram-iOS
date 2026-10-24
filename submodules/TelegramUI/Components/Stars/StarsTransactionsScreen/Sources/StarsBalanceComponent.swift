@@ -184,14 +184,9 @@ final class StarsBalanceComponent: Component {
             case .stars:
                 formattedLabel = formatStarsAmountText(component.count, dateTimeFormat: component.dateTimeFormat)
             }
-            var isDemoBalance = false
-            if UserDefaults.standard.bool(forKey: "mechagram.visualBalances") {
-                let key = component.currency == .ton ? "mechagram.visualTON" : "mechagram.visualStars"
-                if let value = UserDefaults.standard.string(forKey: key), let parsed = Double(value), parsed.isFinite, parsed >= 0 {
-                    formattedLabel = value.replacingOccurrences(of: ".", with: component.dateTimeFormat.decimalSeparator)
-                    isDemoBalance = true
-                }
-            }
+            let visualBalance = mechagramVisualBalance(isTon: component.currency == .ton, decimalSeparator: component.dateTimeFormat.decimalSeparator)
+            let isDemoBalance = visualBalance != nil
+            if let visualBalance { formattedLabel = visualBalance }
             let labelFont: UIFont
             if formattedLabel.contains(component.dateTimeFormat.decimalSeparator) {
                 labelFont = Font.with(size: 48.0, design: .round, weight: .semibold)
