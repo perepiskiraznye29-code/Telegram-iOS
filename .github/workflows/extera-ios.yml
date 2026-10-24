@@ -1,0 +1,95 @@
+name: Extera iOS port
+
+on:
+  push:
+    branches: [codex/extera-ios-port]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: extera-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare Mechagram icon
+        run: python3 port/prepare-mechagram-icon.py
+      - name: Select project Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE_VERSION="$(python3 -c 'import json; print(json.load(open("versions.json"))["xcode"])')"
+          test -d "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+          xcodebuild -version
+          df -h .
+      - name: Verify official Telegram network configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object submodules/TelegramCore/Sources/Network/Network.swift)" = "5410e714b2501d8233d4c55e091b81f263f4c384"
+          test "$(git hash-object submodules/MtProtoKit/Sources/MTContext.m)" = "6f26b62be7e8b18ac294783c68c9046a5665f806"
+          test "$(git hash-object submodules/MtProtoKit/Sources/MTDatacenterAuthMessageService.m)" = "882d6c6118f6876febbcc0356bcef825fe384d4a"
+      - name: Test Mechagram retention and local gift policies
+        run: python3 port/test-mechagram-policies.py
+      - name: Restore compilation cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/extera-disk-cache
+          key: ios-port-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('versions.json', 'MODULE.bazel.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ios-port-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('versions.json', 'MODULE.bazel.lock') }}-
+      - name: Import verification signing certificate
+        run: python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+      - name: Prepare Mechagram verification profiles
+        run: python3 port/prepare-mechagram-profiles.py
+      - name: Build device IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'build --jobs=3' >> "$HOME/.bazelrc"
+          echo 'build --local_resources=memory=HOST_RAM*0.65' >> "$HOME/.bazelrc"
+          python3 -u build-system/Make/Make.py \
+            --bazelUserRoot="$RUNNER_TEMP/extera-bazel" \
+            --cacheDir="$RUNNER_TEMP/extera-disk-cache" \
+            build \
+            --configurationPath=build-system/appstore-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --configuration=release_arm64 \
+            --buildNumber="${{ github.run_number }}" \
+            --outputBuildArtifactsPath="$GITHUB_WORKSPACE/build/port-artifacts" \
+            2>&1 | tee "$RUNNER_TEMP/extera-build.log"
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Telegram-iOS-port-IPA
+          path: build/port-artifacts/Telegram.ipa
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Telegram-iOS-port-build-log
+          path: ${{ runner.temp }}/extera-build.log
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Save compilation cache
+        if: always() && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/extera-disk-cache
+          key: ${{ steps.cache.outputs.cache-primary-key }}
