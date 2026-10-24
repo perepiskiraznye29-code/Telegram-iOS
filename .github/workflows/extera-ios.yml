@@ -2,7 +2,8 @@ name: Extera iOS port
 
 on:
   push:
-    branches: [codex/extera-ios-port]
+    branches: [master]
+    paths: [".github/workflows/extera-ios.yml"]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: codex/extera-ios-port
           submodules: recursive
           fetch-depth: 1
       - uses: actions/setup-python@v5
