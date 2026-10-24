@@ -861,7 +861,7 @@ private final class StarsPurchaseScreenComponent: CombinedComponent {
                 transition: .immediate
             )
             
-            let formattedBalance = mechagramVisualBalance(isTon: false, decimalSeparator: environment.dateTimeFormat.decimalSeparator).map { $0 + " · DEMO" } ?? formatStarsAmountText(state.starsState?.balance ?? StarsAmount.zero, dateTimeFormat: environment.dateTimeFormat)
+            let formattedBalance = mechagramVisualBalance(isTon: false, decimalSeparator: environment.dateTimeFormat.decimalSeparator).map { $0 } ?? formatStarsAmountText(state.starsState?.balance ?? StarsAmount.zero, dateTimeFormat: environment.dateTimeFormat)
             let smallLabelFont = Font.regular(11.0)
             let labelFont = Font.semibold(14.0)
             let balanceText = tonAmountAttributedString(formattedBalance, integralFont: labelFont, fractionalFont: smallLabelFont, color: environment.theme.actionSheet.primaryTextColor, decimalSeparator: environment.dateTimeFormat.decimalSeparator)

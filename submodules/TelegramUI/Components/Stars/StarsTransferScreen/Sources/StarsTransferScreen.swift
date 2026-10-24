@@ -519,7 +519,7 @@ private final class SheetContent: CombinedComponent {
             
             let smallLabelFont = Font.regular(11.0)
             let labelFont = Font.semibold(14.0)
-            let formattedBalance = mechagramVisualBalance(isTon: false, decimalSeparator: environment.dateTimeFormat.decimalSeparator).map { $0 + " · DEMO" } ?? formatStarsAmountText(state.balance ?? StarsAmount.zero, dateTimeFormat: environment.dateTimeFormat)
+            let formattedBalance = mechagramVisualBalance(isTon: false, decimalSeparator: environment.dateTimeFormat.decimalSeparator).map { $0 } ?? formatStarsAmountText(state.balance ?? StarsAmount.zero, dateTimeFormat: environment.dateTimeFormat)
             let balanceText = tonAmountAttributedString(formattedBalance, integralFont: labelFont, fractionalFont: smallLabelFont, color: textColor, decimalSeparator: environment.dateTimeFormat.decimalSeparator)
             
             let balanceValue = balanceValue.update(

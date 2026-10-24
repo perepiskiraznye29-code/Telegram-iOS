@@ -4,6 +4,26 @@ import MtProtoKit
 import SwiftSignalKit
 import TelegramApi
 
+// Local profile entries never have a server reference.
+private func mechagramProfileGiftsKey(accountId: PeerId, peerId: PeerId) -> String {
+    return "mechagram.profileGifts.v1.\(accountId.toInt64()).\(peerId.toInt64())"
+}
+
+func mechagramReadProfileGifts(accountId: PeerId, peerId: PeerId) -> [ProfileGiftsContext.State.StarGift] {
+    guard let data = UserDefaults.standard.data(forKey: mechagramProfileGiftsKey(accountId: accountId, peerId: peerId)) else { return [] }
+    return (try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: data)) ?? []
+}
+
+func mechagramStoreProfileGifts(_ gifts: [ProfileGiftsContext.State.StarGift], accountId: PeerId, peerId: PeerId) -> Bool {
+    guard let data = try? JSONEncoder().encode(gifts) else { return false }
+    UserDefaults.standard.set(data, forKey: mechagramProfileGiftsKey(accountId: accountId, peerId: peerId))
+    return true
+}
+
+public func mechagramHasLocalProfileGifts(accountId: PeerId, peerId: PeerId) -> Bool {
+    return !mechagramReadProfileGifts(accountId: accountId, peerId: peerId).isEmpty
+}
+
 public final class StarGiftsList: Codable, Equatable {
     public let items: [StarGift]
     public let hashValue: Int32
@@ -1874,6 +1894,7 @@ private final class ProfileGiftsContextImpl {
     private let disposable = MetaDisposable()
     private let cacheDisposable = MetaDisposable()
     private let actionDisposable = MetaDisposable()
+    private var localGiftsObserver: NSObjectProtocol?
     
     private var sorting: ProfileGiftsContext.Sorting
     private var filter: ProfileGiftsContext.Filters
@@ -1912,10 +1933,18 @@ private final class ProfileGiftsContextImpl {
         self.filter = filter
         self.limit = limit
         
+        self.localGiftsObserver = NotificationCenter.default.addObserver(forName: Notification.Name("MechagramLocalProfileGiftsChanged"), object: nil, queue: nil) { [weak self] _ in
+            guard let self else { return }
+            self.queue.async { [weak self] in
+                self?.pushState()
+            }
+        }
+        self.pushState()
         self.loadMore()
     }
     
     deinit {
+        if let localGiftsObserver = self.localGiftsObserver { NotificationCenter.default.removeObserver(localGiftsObserver) }
         self.disposable.dispose()
         self.cacheDisposable.dispose()
         self.actionDisposable.dispose()
@@ -2636,14 +2665,30 @@ private final class ProfileGiftsContextImpl {
     private func pushState() {
         let useMainData = (self.filter == .All && self.sorting == .date) || self.filteredCount == nil
         
-        let effectiveGifts = useMainData ? self.gifts : self.filteredGifts
-        let effectiveCount = useMainData ? self.count : self.filteredCount
+        var effectiveGifts = useMainData ? self.gifts : self.filteredGifts
+        var effectiveCount = useMainData ? self.count : self.filteredCount
         let effectiveDataState = useMainData ? self.dataState : self.filteredDataState
         
+        let localGifts = self.collectionId == nil ? mechagramReadProfileGifts(accountId: self.account.peerId, peerId: self.peerId) : []
+        let visibleLocalGifts = localGifts.filter { entry in
+            guard self.filter.contains(.displayed) else { return false }
+            switch entry.gift {
+            case .unique:
+                return self.filter.contains(.unique)
+            case let .generic(gift):
+                if gift.availability == nil { return self.filter.contains(.unlimited) }
+                return self.filter.contains(gift.upgradeStars == nil ? .limitedNonUpgradable : .limitedUpgradable)
+            }
+        }
+        effectiveGifts = visibleLocalGifts + effectiveGifts
+        if !visibleLocalGifts.isEmpty {
+            effectiveCount = (effectiveCount ?? 0) + Int32(clamping: visibleLocalGifts.count)
+        }
+
         let state = ProfileGiftsContext.State(
             filter: self.filter,
             sorting: self.sorting,
-            gifts: self.gifts,
+            gifts: localGifts + self.gifts,
             filteredGifts: effectiveGifts,
             count: effectiveCount,
             dataState: effectiveDataState,

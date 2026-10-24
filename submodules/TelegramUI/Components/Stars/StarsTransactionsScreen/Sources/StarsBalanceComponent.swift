@@ -223,7 +223,7 @@ final class StarsBalanceComponent: Component {
         
             let subtitleText: String
             if isDemoBalance {
-                subtitleText = Locale.current.languageCode == "ru" ? "Визуальный баланс · DEMO" : "Visual balance · DEMO"
+                subtitleText = Locale.current.languageCode == "ru" ? "Баланс" : "Balance"
             } else if let rate = component.rate {
                 subtitleText = "~\(formatTonUsdValue(component.count.value, divide: false, rate: rate, dateTimeFormat: component.dateTimeFormat))"
             } else {

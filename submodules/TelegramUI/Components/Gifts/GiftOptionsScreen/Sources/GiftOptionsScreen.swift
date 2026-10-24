@@ -1219,7 +1219,7 @@ final class GiftOptionsScreenComponent: Component {
                 containerSize: availableSize
             )
             
-            let formattedBalance = mechagramVisualBalance(isTon: false, decimalSeparator: environment.dateTimeFormat.decimalSeparator).map { $0 + " · DEMO" } ?? formatStarsAmountText(self.starsState?.balance ?? StarsAmount.zero, dateTimeFormat: environment.dateTimeFormat)
+            let formattedBalance = mechagramVisualBalance(isTon: false, decimalSeparator: environment.dateTimeFormat.decimalSeparator).map { $0 } ?? formatStarsAmountText(self.starsState?.balance ?? StarsAmount.zero, dateTimeFormat: environment.dateTimeFormat)
             let smallLabelFont = Font.regular(11.0)
             let labelFont = Font.semibold(14.0)
             let balanceText = tonAmountAttributedString(formattedBalance, integralFont: labelFont, fractionalFont: smallLabelFont, color: theme.actionSheet.primaryTextColor, decimalSeparator: environment.dateTimeFormat.decimalSeparator)

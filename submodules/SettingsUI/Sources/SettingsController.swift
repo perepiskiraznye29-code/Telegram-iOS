@@ -123,8 +123,8 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
 }
 
 public func exteraPortSettingsController(context: AccountContext) -> ViewController {
-    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances", "mechagram.visualGifts"]
-    let defaults = [true, false, false, false, false, true, false, false]
+    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances", "mechagram.visualGifts", "mechagram.confirmLocalGifts"]
+    let defaults = [true, false, false, false, false, true, false, false, true]
     let readValues: () -> [Bool] = {
         return keys.enumerated().map { index, key in
             return UserDefaults.standard.object(forKey: key) as? Bool ?? defaults[index]
@@ -142,7 +142,7 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
 
     arguments.editBalance = { isTon in
         let key = isTon ? "mechagram.visualTON" : "mechagram.visualStars"
-        let alert = UIAlertController(title: isTon ? "Visual TON · DEMO" : "Visual Stars · DEMO", message: "Только отображение. Покупки и переводы используют настоящий баланс.", preferredStyle: .alert)
+        let alert = UIAlertController(title: isTon ? "TON" : "Stars", message: "Только отображение. Покупки и переводы используют настоящий баланс.", preferredStyle: .alert)
         alert.addTextField { field in
             field.keyboardType = .decimalPad
             field.text = UserDefaults.standard.string(forKey: key) ?? "0"
@@ -176,8 +176,8 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
     |> map { presentationData, values, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let isRussian = (Locale.current.languageCode ?? "en") == "ru"
         let titles = isRussian
-            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M", "Сохранять удалённые сообщения", "Визуальные балансы · DEMO", "Локальные подарки · DEMO"]
-            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M", "Keep deleted messages", "Visual balances · DEMO", "Local gifts · DEMO"]
+            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M", "Сохранять удалённые сообщения", "Балансы", "Локальные подарки", "Подтверждать каждый локальный подарок"]
+            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M", "Keep deleted messages", "Balances", "Local gifts", "Confirm each local gift"]
         let title = "Mechagram"
         let footer = isRussian
             ? "После изменения перезапустите приложение. Параметры действуют для всех аккаунтов на этом устройстве."
@@ -186,9 +186,9 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
         for (index, label) in titles.enumerated() {
             entries.append(.toggle(Int32(index), label, values[index]))
         }
-        entries.append(.balance(0, "Stars · DEMO: " + (UserDefaults.standard.string(forKey: "mechagram.visualStars") ?? "—"), false))
-        entries.append(.balance(1, "TON · DEMO: " + (UserDefaults.standard.string(forKey: "mechagram.visualTON") ?? "—"), true))
-        entries.append(.footer(footer + (isRussian ? " Сохраняются уже полученные облачные сообщения. Секретные чаты и исчезающие медиа исключены. DEMO-подарки видны только на этом устройстве и списывают только визуальный баланс. Настоящие покупки используют настоящий баланс." : " Previously received cloud messages are retained. Secret chats and disappearing media are excluded. DEMO gifts are visible only on this device and spend the visual balance. Real purchases use the real balance.")))
+        entries.append(.balance(0, "Stars: " + (UserDefaults.standard.string(forKey: "mechagram.visualStars") ?? "—"), false))
+        entries.append(.balance(1, "TON: " + (UserDefaults.standard.string(forKey: "mechagram.visualTON") ?? "—"), true))
+        entries.append(.footer(footer + (isRussian ? " Сохраняются уже полученные облачные сообщения. Секретные чаты и исчезающие медиа исключены. Локальные подарки видны только на этом устройстве и списывают только локальный баланс. Настоящие покупки используют настоящий баланс." : " Previously received cloud messages are retained. Secret chats and disappearing media are excluded. Local gifts are visible only on this device and spend the local balance. Real purchases use the real balance.")))
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
         let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: entries, style: .blocks, animateChanges: false)
         return (controllerState, (listState, arguments))

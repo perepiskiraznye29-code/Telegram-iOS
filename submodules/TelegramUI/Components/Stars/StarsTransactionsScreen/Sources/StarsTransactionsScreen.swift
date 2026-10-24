@@ -544,7 +544,7 @@ final class StarsTransactionsScreenComponent: Component {
                 transition: .immediate,
                 component: AnyComponent(MultilineTextComponent(
                     text: .plain(NSAttributedString(
-                        string: visualBalance != nil ? "DEMO" : environment.strings.Stars_Intro_Balance,
+                        string: environment.strings.Stars_Intro_Balance,
                         font: Font.regular(14.0),
                         textColor: environment.theme.actionSheet.primaryTextColor
                     )),

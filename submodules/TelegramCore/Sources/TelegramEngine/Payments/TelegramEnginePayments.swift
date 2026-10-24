@@ -37,9 +37,22 @@ public extension TelegramEngine {
                 case .unique:
                     action = TelegramMediaAction(action: .starGiftUnique(gift: gift, isUpgrade: false, isTransferred: false, savedToProfile: false, canExportDate: nil, transferStars: nil, isRefunded: false, isPrepaidUpgrade: false, peerId: nil, senderId: nil, savedId: nil, resaleAmount: nil, canTransferDate: nil, canResaleDate: nil, dropOriginalDetailsStars: nil, assigned: false, fromOffer: false, canCraftAt: nil, isCrafted: false))
                 }
+                var profileGifts = mechagramReadProfileGifts(accountId: self.account.peerId, peerId: peerId)
+                profileGifts.insert(ProfileGiftsContext.State.StarGift(
+                    gift: gift, reference: nil,
+                    fromPeer: transaction.getPeer(self.account.peerId).map(EnginePeer.init),
+                    date: Int32(Date().timeIntervalSince1970), text: "Только на этом устройстве", entities: [],
+                    nameHidden: false, savedToProfile: true, pinnedToTop: false, convertStars: nil,
+                    canUpgrade: false, canExportDate: nil, upgradeStars: nil, transferStars: nil,
+                    canTransferDate: nil, canResaleDate: nil, collectionIds: nil, prepaidUpgradeHash: nil,
+                    upgradeSeparate: false, dropOriginalDetailsStars: nil, number: nil,
+                    isRefunded: false, canCraftAt: nil
+                ), at: 0)
+                guard mechagramStoreProfileGifts(profileGifts, accountId: self.account.peerId, peerId: peerId) else { return false }
                 let message = StoreMessage(id: .Partial(peerId, Namespaces.Message.Local), customStableId: nil, globallyUniqueId: Int64.random(in: 1 ... Int64.max), groupingKey: nil, threadId: nil, timestamp: Int32(Date().timeIntervalSince1970), flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: self.account.peerId, text: marker, attributes: [], media: [action])
                 let _ = transaction.addMessages([message], location: .UpperHistoryBlock)
                 settings.set(remaining, forKey: key)
+                NotificationCenter.default.post(name: Notification.Name("MechagramLocalProfileGiftsChanged"), object: nil)
                 return true
             }
         }

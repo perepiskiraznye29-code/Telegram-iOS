@@ -2157,7 +2157,7 @@ private final class BalanceComponent: CombinedComponent {
             let balanceText: String
             let visualBalance = mechagramVisualBalance(isTon: context.component.currency == .ton, decimalSeparator: context.component.context.sharedContext.currentPresentationData.with { $0 }.dateTimeFormat.decimalSeparator)
             if let visualBalance {
-                balanceText = visualBalance + " · DEMO"
+                balanceText = visualBalance
             } else if let value = context.component.balance {
                 switch context.component.currency {
                 case .stars:

@@ -265,7 +265,7 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         if visualBalance != nil || !isPremiumDisabled || abs(starsState.balance.value) > 0 {
             let balanceText: NSAttributedString
             if visualBalance != nil || abs(starsState.balance.value) > 0 {
-                let formattedLabel = visualBalance.map { $0 + " · DEMO" } ?? formatStarsAmountText(starsState.balance, dateTimeFormat: presentationData.dateTimeFormat)
+                let formattedLabel = visualBalance.map { $0 } ?? formatStarsAmountText(starsState.balance, dateTimeFormat: presentationData.dateTimeFormat)
                 let smallLabelFont = Font.regular(floor(presentationData.listsFontSize.itemListBaseFontSize / 17.0 * 13.0))
                 let labelFont = Font.regular(presentationData.listsFontSize.itemListBaseFontSize)
                 let labelColor = presentationData.theme.list.itemSecondaryTextColor
@@ -283,7 +283,7 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
         if visualBalance != nil || abs(tonState.balance.value) > 0 {
             let balanceText: NSAttributedString
             if visualBalance != nil || abs(tonState.balance.value) > 0 {
-                let formattedLabel = visualBalance.map { $0 + " · DEMO" } ?? formatTonAmountText(tonState.balance.value, dateTimeFormat: presentationData.dateTimeFormat)
+                let formattedLabel = visualBalance.map { $0 } ?? formatTonAmountText(tonState.balance.value, dateTimeFormat: presentationData.dateTimeFormat)
                 let smallLabelFont = Font.regular(floor(presentationData.listsFontSize.itemListBaseFontSize / 17.0 * 13.0))
                 let labelFont = Font.regular(presentationData.listsFontSize.itemListBaseFontSize)
                 let labelColor = presentationData.theme.list.itemSecondaryTextColor

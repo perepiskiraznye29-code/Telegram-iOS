@@ -791,8 +791,8 @@ public class ChatMessageGiftBubbleContentNode: ChatMessageBubbleContentNode {
                 }
                 
                 if item.message.id.namespace == Namespaces.Message.Local && item.message.text.hasPrefix("DEMO ·") {
-                    title = "Подарок · DEMO"
-                    text = item.message.text
+                    title = "Подарок"
+                    text = "Локальный подарок. Видно только на этом устройстве."
                     entities = []
                     buttonTitle = "Только на этом устройстве"
                 }
