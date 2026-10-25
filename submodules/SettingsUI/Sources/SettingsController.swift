@@ -123,10 +123,11 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
 }
 
 public func exteraPortSettingsController(context: AccountContext) -> ViewController {
-    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances", "mechagram.visualGifts", "mechagram.confirmLocalGifts.v2"]
-    let defaults = [true, false, false, false, false, true, false, false, false]
+    let keys = ["exteraPort.showMessageDetails", "exteraPort.hideOwnPhoneNumber", "exteraPort.hideStories", "exteraPort.messageSeconds", "exteraPort.fullCounts", "mechagram.keepDeleted", "mechagram.visualBalances", "mechagram.visualGifts", mechagramSkipGiftConfirmationKey]
+    let defaults = [true, false, false, false, false, true, false, false, true]
     let readValues: () -> [Bool] = {
         return keys.enumerated().map { index, key in
+            if key == mechagramSkipGiftConfirmationKey { return mechagramSkipGiftConfirmation() }
             return UserDefaults.standard.object(forKey: key) as? Bool ?? defaults[index]
         }
     }
@@ -136,7 +137,12 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
     let values = ValuePromise<[Bool]>(readValues(), ignoreRepeated: true)
     let arguments = ExteraPortSettingsArguments(update: { index, value in
         guard keys.indices.contains(Int(index)) else { return }
-        UserDefaults.standard.set(value, forKey: keys[Int(index)])
+        let key = keys[Int(index)]
+        if key == mechagramSkipGiftConfirmationKey {
+            mechagramSetSkipGiftConfirmation(value)
+        } else {
+            UserDefaults.standard.set(value, forKey: key)
+        }
         values.set(readValues())
     })
 
@@ -176,12 +182,12 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
     |> map { presentationData, values, _ -> (ItemListControllerState, (ItemListNodeState, Any)) in
         let isRussian = (Locale.current.languageCode ?? "en") == "ru"
         let titles = isRussian
-            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M", "Сохранять удалённые сообщения", "Балансы", "Локальные подарки", "Подтверждать каждый локальный подарок"]
-            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M", "Keep deleted messages", "Balances", "Local gifts", "Confirm each local gift"]
+            ? ["Данные сообщения", "Скрывать номер в шапке настроек", "Скрывать истории над чатами", "Секунды во времени сообщений", "Полные числа вместо K/M", "Сохранять удалённые сообщения", "Балансы", "Локальные подарки", "Отправлять подарки без подтверждения"]
+            : ["Message details", "Hide phone number in settings header", "Hide stories above chats", "Seconds in message timestamps", "Full counts instead of K/M", "Keep deleted messages", "Balances", "Local gifts", "Send gifts without confirmation"]
         let title = "Mechagram"
         let footer = isRussian
-            ? "После изменения перезапустите приложение. Параметры действуют для всех аккаунтов на этом устройстве."
-            : "Restart the app after changing these options. Options apply to all accounts on this device."
+            ? "Некоторые параметры требуют перезапуска. Переключатель отправки без подтверждения действует сразу. Параметры действуют для всех аккаунтов на этом устройстве."
+            : "Some options require a restart. Sending without confirmation takes effect immediately. Options apply to all accounts on this device."
         var entries: [ExteraPortSettingsEntry] = []
         for (index, label) in titles.enumerated() {
             entries.append(.toggle(Int32(index), label, values[index]))

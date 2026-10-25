@@ -5,11 +5,68 @@ import SwiftSignalKit
 import TelegramApi
 
 // MECHAGRAM_GIFT_CONFIRMATION_POLICY_BEGIN
+public let mechagramSkipGiftConfirmationKey = "mechagram.skipGiftConfirmation.v1"
+
+public func mechagramSkipGiftConfirmation(defaults: UserDefaults = .standard) -> Bool {
+    return defaults.object(forKey: mechagramSkipGiftConfirmationKey) as? Bool ?? true
+}
+
+public func mechagramSetSkipGiftConfirmation(_ skip: Bool, defaults: UserDefaults = .standard) {
+    defaults.set(skip, forKey: mechagramSkipGiftConfirmationKey)
+    // Keep older builds consistent if the same app data is used after a downgrade.
+    defaults.set(!skip, forKey: "mechagram.confirmLocalGifts.v2")
+    defaults.set(!skip, forKey: "mechagram.confirmLocalGifts")
+}
+
 public func mechagramShouldConfirmLocalGifts(defaults: UserDefaults = .standard) -> Bool {
-    // Versioned preference resets the old opt-out default once, while preserving future choices.
-    return defaults.object(forKey: "mechagram.confirmLocalGifts.v2") as? Bool ?? false
+    return !mechagramSkipGiftConfirmation(defaults: defaults)
+}
+
+public func mechagramPerformGiftAction(defaults: UserDefaults = .standard, confirm: () -> Void, create: () -> Void) {
+    if mechagramSkipGiftConfirmation(defaults: defaults) {
+        create()
+    } else {
+        confirm()
+    }
 }
 // MECHAGRAM_GIFT_CONFIRMATION_POLICY_END
+
+// MECHAGRAM_MARKET_VISIBILITY_POLICY_BEGIN
+private let mechagramMarketPurchasesLock = NSLock()
+
+private func mechagramMarketPurchasesKey(accountId: Int64, giftTypeId: Int64) -> String {
+    return "mechagram.hiddenMarketGifts.v1.\(accountId).\(giftTypeId)"
+}
+
+func mechagramHiddenMarketGiftIds(accountId: Int64, giftTypeId: Int64, defaults: UserDefaults = .standard) -> Set<String> {
+    return Set(defaults.stringArray(forKey: mechagramMarketPurchasesKey(accountId: accountId, giftTypeId: giftTypeId)) ?? [])
+}
+
+func mechagramRecordLocalMarketPurchase(accountId: Int64, giftTypeId: Int64, giftId: Int64, defaults: UserDefaults = .standard) {
+    mechagramMarketPurchasesLock.lock()
+    defer { mechagramMarketPurchasesLock.unlock() }
+    var ids = mechagramHiddenMarketGiftIds(accountId: accountId, giftTypeId: giftTypeId, defaults: defaults)
+    ids.insert(String(giftId))
+    defaults.set(ids.sorted(), forKey: mechagramMarketPurchasesKey(accountId: accountId, giftTypeId: giftTypeId))
+}
+// MECHAGRAM_MARKET_VISIBILITY_POLICY_END
+
+private func mechagramImportLocalMarketPurchases(accountId: PeerId) {
+    let defaults = UserDefaults.standard
+    let accountValue = accountId.toInt64()
+    let migrationKey = "mechagram.hiddenMarketGifts.imported.v1.\(accountValue)"
+    guard !defaults.bool(forKey: migrationKey) else { return }
+    let prefix = "mechagram.profileGifts.v1.\(accountValue)."
+    for (key, value) in defaults.dictionaryRepresentation() where key.hasPrefix(prefix) {
+        guard let data = value as? Data, let entries = try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: data) else { continue }
+        for entry in entries {
+            if case let .unique(gift) = entry.gift {
+                mechagramRecordLocalMarketPurchase(accountId: accountValue, giftTypeId: gift.giftId, giftId: gift.id)
+            }
+        }
+    }
+    defaults.set(true, forKey: migrationKey)
+}
 
 public func mechagramIsLocalGiftMessage(_ message: EngineMessage) -> Bool {
     return message.id.namespace == Namespaces.Message.Local && (message.text.hasPrefix("DEMO ·") || message.text == "mechagram:local-gift:v2")
@@ -3987,6 +4044,8 @@ private final class ResaleGiftsContextImpl {
     private let forCrafting: Bool
     
     private let disposable = MetaDisposable()
+    private var localPurchaseObserver: NSObjectProtocol?
+    private var localAutoLoadOffset: String?
     
     private var sorting: ResaleGiftsContext.Sorting = .value
     private var filterAttributes: [ResaleGiftsContext.Attribute] = []
@@ -4017,10 +4076,18 @@ private final class ResaleGiftsContextImpl {
         self.giftId = giftId
         self.forCrafting = forCrafting
         
+        mechagramImportLocalMarketPurchases(accountId: account.peerId)
+        self.localPurchaseObserver = NotificationCenter.default.addObserver(forName: Notification.Name("MechagramLocalProfileGiftsChanged"), object: nil, queue: nil) { [weak self] _ in
+            guard let self else { return }
+            self.queue.async { [weak self] in
+                self?.pushState()
+            }
+        }
         self.loadMore()
     }
     
     deinit {
+        if let localPurchaseObserver = self.localPurchaseObserver { NotificationCenter.default.removeObserver(localPurchaseObserver) }
         self.disposable.dispose()
     }
     
@@ -4043,6 +4110,7 @@ private final class ResaleGiftsContextImpl {
         let dataState = self.dataState
         
         if case let .ready(true, initialNextOffset) = dataState {
+            if initialNextOffset == nil { self.localAutoLoadOffset = nil }
             self.dataState = .loading
             if !reload {
                 self.pushState()
@@ -4278,18 +4346,30 @@ private final class ResaleGiftsContextImpl {
     }
         
     private func pushState() {
+        let hiddenIds = mechagramHiddenMarketGiftIds(accountId: self.account.peerId.toInt64(), giftTypeId: self.giftId)
+        let visibleGifts = self.gifts.filter { gift in
+            if case let .unique(value) = gift { return !hiddenIds.contains(String(value.id)) }
+            return true
+        }
+        let hiddenLoadedCount = Int32(clamping: self.gifts.count - visibleGifts.count)
+        let visibleCount = self.count.map { max(Int32(clamping: visibleGifts.count), $0 - hiddenLoadedCount) }
         let state = ResaleGiftsContext.State(
             sorting: self.sorting,
             filterAttributes: self.filterAttributes,
             starsOnly: self.starsOnly,
-            gifts: self.gifts,
+            gifts: visibleGifts,
             attributes: self.attributes,
             attributeCount: self.attributeCount,
-            count: self.count,
+            count: visibleCount,
             dataState: self.dataState
         )
         self._state = state
         self.stateValue.set(.single(state))
+        // A page containing only hidden purchases must not strand the grid before later offers.
+        if visibleGifts.isEmpty, !hiddenIds.isEmpty, case let .ready(true, nextOffset) = self.dataState, let nextOffset, nextOffset != self.localAutoLoadOffset {
+            self.localAutoLoadOffset = nextOffset
+            self.queue.async { [weak self] in self?.loadMore() }
+        }
     }
 }
 

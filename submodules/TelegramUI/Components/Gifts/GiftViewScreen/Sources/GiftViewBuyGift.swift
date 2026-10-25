@@ -154,15 +154,13 @@ public func buyStarGiftImpl(
                     }
                 })
             }
-            let alert = textAlertController(context: context, title: "Подарок", text: "Добавить подарок получателю?", actions: [
-                TextAlertAction(type: .genericAction, title: "Отмена", action: { beforeCompletion() }),
-                TextAlertAction(type: .defaultAction, title: "Создать", action: createGift)
-            ])
-            if mechagramShouldConfirmLocalGifts() {
+            mechagramPerformGiftAction(confirm: {
+                let alert = textAlertController(context: context, title: "Подарок", text: "Добавить подарок получателю?", actions: [
+                    TextAlertAction(type: .genericAction, title: "Отмена", action: { beforeCompletion() }),
+                    TextAlertAction(type: .defaultAction, title: "Создать", action: createGift)
+                ])
                 controller.present(alert, in: .window(.root))
-            } else {
-                createGift()
-            }
+            }, create: createGift)
             return
         }
 

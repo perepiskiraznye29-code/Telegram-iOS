@@ -5,11 +5,12 @@ import tempfile
 
 root = Path(__file__).resolve().parents[1]
 sections = [
+    ("submodules/TelegramCore/Sources/TelegramEngine/Payments/StarGifts.swift", "MARKET_VISIBILITY"),
     ("submodules/TelegramCore/Sources/TelegramEngine/Payments/StarGifts.swift", "GIFT_CONFIRMATION"),
     ("submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift", "RETENTION"),
     ("submodules/TelegramCore/Sources/TelegramEngine/Payments/TelegramEnginePayments.swift", "DEMO"),
 ]
-source = "import Foundation\n"
+source = "import Foundation\nimport Dispatch\n"
 for path, name in sections:
     text = (root / path).read_text()
     source += text.split(f"// MECHAGRAM_{name}_POLICY_BEGIN\n")[1].split(f"// MECHAGRAM_{name}_POLICY_END")[0]
@@ -29,15 +30,43 @@ assert(mechagramDemoBalanceAfterPurchase(raw: "NaN", value: 1, nanos: 0, isTon: 
 assert(mechagramDemoBalanceAfterPurchase(raw: "100", value: 1, nanos: 1_000_000_000, isTon: false) == nil)
 let giftDefaultsName = "mechagram-tests-" + UUID().uuidString
 let giftDefaults = UserDefaults(suiteName: giftDefaultsName)!
-assert(!mechagramShouldConfirmLocalGifts(defaults: giftDefaults))
-giftDefaults.set(true, forKey: "mechagram.confirmLocalGifts")
+assert(mechagramSkipGiftConfirmation(defaults: giftDefaults))
 assert(!mechagramShouldConfirmLocalGifts(defaults: giftDefaults))
 giftDefaults.set(true, forKey: "mechagram.confirmLocalGifts.v2")
+assert(mechagramSkipGiftConfirmation(defaults: giftDefaults))
+var confirmations = 0
+var creations = 0
+mechagramSetSkipGiftConfirmation(true, defaults: giftDefaults)
+mechagramPerformGiftAction(defaults: giftDefaults, confirm: { confirmations += 1 }, create: { creations += 1 })
+assert(confirmations == 0 && creations == 1)
+assert(!giftDefaults.bool(forKey: "mechagram.confirmLocalGifts.v2"))
+mechagramSetSkipGiftConfirmation(false, defaults: giftDefaults)
+mechagramPerformGiftAction(defaults: giftDefaults, confirm: { confirmations += 1 }, create: { creations += 1 })
+assert(confirmations == 1 && creations == 1)
 assert(mechagramShouldConfirmLocalGifts(defaults: giftDefaults))
-giftDefaults.set(false, forKey: "mechagram.confirmLocalGifts.v2")
-assert(!mechagramShouldConfirmLocalGifts(defaults: giftDefaults))
+assert(giftDefaults.bool(forKey: "mechagram.confirmLocalGifts.v2"))
+mechagramSetSkipGiftConfirmation(true, defaults: giftDefaults)
+let reopenedDefaults = UserDefaults(suiteName: giftDefaultsName)!
+assert(mechagramSkipGiftConfirmation(defaults: reopenedDefaults))
+mechagramPerformGiftAction(defaults: reopenedDefaults, confirm: { confirmations += 1 }, create: { creations += 1 })
+assert(confirmations == 1 && creations == 2)
+assert(mechagramHiddenMarketGiftIds(accountId: 11, giftTypeId: 22, defaults: giftDefaults).isEmpty)
+mechagramRecordLocalMarketPurchase(accountId: 11, giftTypeId: 22, giftId: Int64.max, defaults: giftDefaults)
+assert(mechagramHiddenMarketGiftIds(accountId: 11, giftTypeId: 22, defaults: giftDefaults).contains(String(Int64.max)))
+assert(mechagramHiddenMarketGiftIds(accountId: 12, giftTypeId: 22, defaults: giftDefaults).isEmpty)
+assert(mechagramHiddenMarketGiftIds(accountId: 11, giftTypeId: 23, defaults: giftDefaults).isEmpty)
+mechagramRecordLocalMarketPurchase(accountId: 11, giftTypeId: 22, giftId: Int64.max, defaults: giftDefaults)
+assert(mechagramHiddenMarketGiftIds(accountId: 11, giftTypeId: 22, defaults: giftDefaults).count == 1)
+assert(mechagramHiddenMarketGiftIds(accountId: 11, giftTypeId: 22, defaults: reopenedDefaults).contains(String(Int64.max)))
+DispatchQueue.concurrentPerform(iterations: 32) { index in
+    let concurrentDefaults = UserDefaults(suiteName: giftDefaultsName)!
+    mechagramRecordLocalMarketPurchase(accountId: 11, giftTypeId: 22, giftId: Int64(index), defaults: concurrentDefaults)
+}
+let concurrentIds = mechagramHiddenMarketGiftIds(accountId: 11, giftTypeId: 22, defaults: reopenedDefaults)
+assert(concurrentIds.count == 33)
+assert((0 ..< 32).allSatisfy { concurrentIds.contains(String($0)) })
 giftDefaults.removePersistentDomain(forName: giftDefaultsName)
-print("Mechagram: 17 production policy cases passed")
+print("Mechagram: 31 production policy cases passed")
 '''
 with tempfile.TemporaryDirectory() as directory:
     path = Path(directory) / "main.swift"

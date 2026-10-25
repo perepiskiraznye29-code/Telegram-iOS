@@ -53,6 +53,9 @@ public extension TelegramEngine {
                 let message = StoreMessage(id: .Partial(peerId, Namespaces.Message.Local), customStableId: nil, globallyUniqueId: Int64.random(in: 1 ... Int64.max), groupingKey: nil, threadId: nil, timestamp: Int32(Date().timeIntervalSince1970), flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: self.account.peerId, text: marker, attributes: [], media: [action])
                 let _ = transaction.addMessages([message], location: .UpperHistoryBlock)
                 settings.set(remaining, forKey: key)
+                if case let .unique(value) = gift {
+                    mechagramRecordLocalMarketPurchase(accountId: self.account.peerId.toInt64(), giftTypeId: value.giftId, giftId: value.id)
+                }
                 NotificationCenter.default.post(name: Notification.Name("MechagramLocalProfileGiftsChanged"), object: nil)
                 return true
             }

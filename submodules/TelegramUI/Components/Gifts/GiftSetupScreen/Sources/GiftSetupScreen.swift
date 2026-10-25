@@ -484,15 +484,13 @@ private final class GiftSetupScreenComponent: Component {
                         }
                     })
                 }
-                let alert = textAlertController(context: context, title: "Подарок", text: "Добавить подарок за \(price) звёзд?", actions: [
-                    TextAlertAction(type: .genericAction, title: "Отмена", action: {}),
-                    TextAlertAction(type: .defaultAction, title: "Создать", action: createGift)
-                ])
-                if mechagramShouldConfirmLocalGifts() {
+                mechagramPerformGiftAction(confirm: {
+                    let alert = textAlertController(context: context, title: "Подарок", text: "Добавить подарок за \(price) звёзд?", actions: [
+                        TextAlertAction(type: .genericAction, title: "Отмена", action: {}),
+                        TextAlertAction(type: .defaultAction, title: "Создать", action: createGift)
+                    ])
                     controller.present(alert, in: .window(.root))
-                } else {
-                    createGift()
-                }
+                }, create: createGift)
                 return
             }
             guard let starsContext = context.starsContext, let starsState = starsContext.currentState else { return }
