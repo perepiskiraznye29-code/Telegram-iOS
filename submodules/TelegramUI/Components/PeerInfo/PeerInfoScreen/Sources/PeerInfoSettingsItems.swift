@@ -227,9 +227,11 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     } else {
         notificationsWarning = false
     }
+    if !UserDefaults.standard.bool(forKey: "mechagram.hideSettings.v1") {
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 99, text: (Locale.current.languageCode ?? "en") == "ru" ? "Настройки мода" : "Mod settings", icon: PresentationResourcesSettings.appearance, action: {
         interaction.openSettings(.exteraPort)
     }))
+    }
 
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 0, label: notificationsWarning ? .badge("!", presentationData.theme.list.itemDestructiveColor) : .none, text: presentationData.strings.Settings_NotificationsAndSounds, icon: PresentationResourcesSettings.notifications, action: {
         interaction.openSettings(.notificationsAndSounds)
@@ -240,9 +242,16 @@ func settingsItems(data: PeerInfoScreenData?, context: AccountContext, presentat
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 2, text: presentationData.strings.Settings_ChatSettings, icon: PresentationResourcesSettings.dataAndStorage, action: {
         interaction.openSettings(.dataAndStorage)
     }))
-    items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 3, text: presentationData.strings.Settings_Appearance, icon: PresentationResourcesSettings.appearance, action: {
+    let appearanceItem = PeerInfoScreenDisclosureItem(id: 3, text: presentationData.strings.Settings_Appearance, icon: PresentationResourcesSettings.appearance, action: {
         interaction.openSettings(.appearance)
-    }))
+    })
+    appearanceItem.longPressAction = {
+        if UserDefaults.standard.bool(forKey: "mechagram.hideSettings.v1") {
+            UserDefaults.standard.set(false, forKey: "mechagram.hideSettings.v1")
+            interaction.openSettings(.exteraPort)
+        }
+    }
+    items[.advanced]!.append(appearanceItem)
     
     items[.advanced]!.append(PeerInfoScreenDisclosureItem(id: 6, label: .text(data.isPowerSavingEnabled == true ? presentationData.strings.Settings_PowerSavingOn : presentationData.strings.Settings_PowerSavingOff), text: presentationData.strings.Settings_PowerSaving, icon: PresentationResourcesSettings.powerSaving, action: {
         interaction.openSettings(.powerSaving)

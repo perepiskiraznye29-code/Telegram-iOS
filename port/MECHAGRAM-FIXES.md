@@ -29,3 +29,13 @@ The explicit Send gifts without confirmation switch is enabled by default. Setti
 Completed local collectible creation records the unique gift ID per account and gift family. Resale contexts observe purchase notifications and filter those IDs from visible results without changing server pagination data. An empty page containing hidden purchases advances to the next cursor; repeated cursors are not retried automatically. New contexts use the persisted IDs. Existing local profile gift records are imported once per account. Other accounts and devices retain their own market view; server listings are unchanged.
 
 The Foundation production-policy suite now runs 31 assertions, including persistence, account/family isolation, large IDs, idempotent purchase records and concurrent updates.
+
+## Shared previews and local collectible controls (build 18)
+
+Local profile gifts now use one recipient store across accounts in the installation. Old account-specific profile stores migrate once without restoring transferred records. Owned collectible previews expose transfer, wear/take off and list/unlist controls. Transfer changes the profile owner and clears resale metadata; sale price persists locally. Wearing updates a local status overlay and never calls Telegram status/payment APIs. Local resale detail screens do not fetch real payment forms.
+
+An isolated VDS service shares collectible preview metadata across installations over pinned HTTPS. The app uses a persistent outbox and cached public profile reads; open profiles refresh every 15 seconds. A profile with no official gifts gains its gift pane when shared previews arrive. Authentication identifies installations only, not Telegram identities. Latest published preview for a collectible wins; this is not an ownership registry or a real sale. See port/sync/README.md for protocol limits and deployment isolation. Regular noncollectible gifts remain local.
+
+Hide mod settings entry removes only the settings row. Existing feature preferences remain active. Hold Appearance in Telegram settings to restore and open Mechagram.
+
+Local syntax checks and backend protocol tests passed before push. Full Swift compilation and iPhone validation remain pending until CI/device results. At the user's request, stop following CI when the compilation step starts.

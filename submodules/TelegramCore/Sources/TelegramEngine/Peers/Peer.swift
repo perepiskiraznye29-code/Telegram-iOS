@@ -591,7 +591,7 @@ public extension EnginePeer {
     init(_ peer: Peer) {
         switch peer {
         case let user as TelegramUser:
-            self = .user(user)
+            self = .user(mechagramOverlayLocalWear(user))
         case let group as TelegramGroup:
             self = .legacyGroup(group)
         case let channel as TelegramChannel:

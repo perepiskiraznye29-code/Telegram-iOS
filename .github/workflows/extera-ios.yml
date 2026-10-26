@@ -44,6 +44,8 @@ jobs:
           test "$(git hash-object submodules/MtProtoKit/Sources/MTDatacenterAuthMessageService.m)" = "882d6c6118f6876febbcc0356bcef825fe384d4a"
       - name: Test Mechagram retention and local gift policies
         run: python3 port/test-mechagram-policies.py
+      - name: Test Mechagram gift sync ledger
+        run: python3 port/sync/test_server.py
       - name: Restore compilation cache
         id: cache
         uses: actions/cache/restore@v4

@@ -1519,7 +1519,7 @@ func peerInfoScreenData(
             let forcedLinkedCommunityId = Atomic<PeerId?>(value: nil)
             
             return combineLatest(
-                context.account.viewTracker.peerView(peerId, updateData: true),
+                combineLatest(context.account.viewTracker.peerView(peerId, updateData: true), mechagramLocalGiftsChanged()) |> map { view, _ in view },
                 peerInfoAvailableMediaPanes(context: context, peerId: peerId, chatLocation: chatLocation, isMyProfile: isMyProfile, chatLocationContextHolder: chatLocationContextHolder, sharedMediaFromForumTopic: sharedMediaFromForumTopic),
                 context.engine.data.subscribe(TelegramEngine.EngineData.Item.NotificationSettings.Global()),
                 secretChatKeyFingerprint,

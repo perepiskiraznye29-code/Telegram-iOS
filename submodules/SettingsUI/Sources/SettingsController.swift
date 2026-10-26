@@ -80,6 +80,7 @@ public func makeSetupTwoFactorAuthController(context: AccountContext) -> ViewCon
 private final class ExteraPortSettingsArguments {
     let update: (Int32, Bool) -> Void
     var editBalance: ((Bool) -> Void)?
+    var hideSettings: (() -> Void)?
 
     init(update: @escaping (Int32, Bool) -> Void) {
         self.update = update
@@ -90,6 +91,7 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
     case toggle(Int32, String, Bool)
     case footer(String)
     case balance(Int32, String, Bool)
+    case hide(String)
 
     var section: ItemListSectionId { return 0 }
 
@@ -98,6 +100,7 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
         case let .toggle(index, _, _): return index
         case let .balance(index, _, _): return 20 + index
         case .footer: return 100
+        case .hide: return 90
         }
     }
 
@@ -118,6 +121,8 @@ private enum ExteraPortSettingsEntry: ItemListNodeEntry {
             })
         case let .footer(text):
             return ItemListTextItem(presentationData: presentationData, text: .plain(text), sectionId: self.section)
+        case let .hide(title):
+            return ItemListActionItem(presentationData: presentationData, systemStyle: .glass, title: title, kind: .generic, alignment: .natural, sectionId: self.section, style: .blocks, action: { arguments.hideSettings?() })
         }
     }
 }
@@ -145,6 +150,10 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
         }
         values.set(readValues())
     })
+    arguments.hideSettings = {
+        UserDefaults.standard.set(true, forKey: "mechagram.hideSettings.v1")
+        let _ = resultController?.navigationController?.popViewController(animated: true)
+    }
 
     arguments.editBalance = { isTon in
         let key = isTon ? "mechagram.visualTON" : "mechagram.visualStars"
@@ -194,7 +203,8 @@ public func exteraPortSettingsController(context: AccountContext) -> ViewControl
         }
         entries.append(.balance(0, "Stars: " + (UserDefaults.standard.string(forKey: "mechagram.visualStars") ?? "—"), false))
         entries.append(.balance(1, "TON: " + (UserDefaults.standard.string(forKey: "mechagram.visualTON") ?? "—"), true))
-        entries.append(.footer(footer + (isRussian ? " Сохраняются уже полученные облачные сообщения. Секретные чаты и исчезающие медиа исключены. Локальные подарки видны только на этом устройстве и списывают только локальный баланс. Настоящие покупки используют настоящий баланс." : " Previously received cloud messages are retained. Secret chats and disappearing media are excluded. Local gifts are visible only on this device and spend the local balance. Real purchases use the real balance.")))
+        entries.append(.hide(isRussian ? "Скрыть пункт настроек мода" : "Hide mod settings entry"))
+        entries.append(.footer(footer + (isRussian ? " Чтобы вернуть скрытый пункт, удерживайте строку «Оформление» в настройках Telegram. Функции мода продолжают работать. Подарки и действия с ними — копии Mechagram; настоящие покупки используют настоящий баланс." : " To restore the hidden entry, hold Appearance in Telegram settings. Mod features continue working. Gifts and their actions are Mechagram copies; real purchases use the real balance.")))
         let controllerState = ItemListControllerState(presentationData: ItemListPresentationData(presentationData), title: .text(title), leftNavigationButton: nil, rightNavigationButton: nil, backNavigationButton: ItemListBackButton(title: presentationData.strings.Common_Back))
         let listState = ItemListNodeState(presentationData: ItemListPresentationData(presentationData), entries: entries, style: .blocks, animateChanges: false)
         return (controllerState, (listState, arguments))

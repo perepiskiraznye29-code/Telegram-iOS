@@ -216,7 +216,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                         isOwn = true
                     }
                     
-                    if let _ = arguments.resellAmounts, !isOwn {
+                    if let _ = arguments.resellAmounts, !isOwn, !subject.mechagramIsLocal {
                         self.buyFormDisposable = (context.engine.payments.fetchBotPaymentForm(source: .starGiftResale(slug: gift.slug, toPeerId: context.account.peerId, ton: gift.resellForTonOnly), themeParams: nil)
                         |> deliverOnMainQueue).start(next: { [weak self] paymentForm in
                             guard let self else {
@@ -1171,7 +1171,21 @@ private final class GiftViewSheetContent: CombinedComponent {
         }
         
         func transferGift() {
-            guard !self.subject.mechagramIsLocal else { return }
+            if self.subject.mechagramIsLocal {
+                guard case let .unique(gift) = self.subject.arguments?.gift, case let .peerId(owner) = gift.owner, owner == self.context.account.peerId, let controller = self.getController() as? GiftViewScreen else { return }
+                let context = self.context
+                let picker = context.sharedContext.makePeerSelectionController(PeerSelectionControllerParams(context: context, filter: [.excludeRecent, .doNotSearchMessages], requestPeerType: [.user(.init(isBot: false, isPremium: nil))], hasContactSelector: false, hasCreation: false))
+                picker.peerSelected = { [weak picker, weak controller] peer, _ in
+                    let _ = (context.engine.payments.mechagramTransferLocalGift(giftId: gift.id, recipientId: peer.id) |> deliverOnMainQueue).startStandalone(next: { success in
+                        guard success else { return }
+                        let _ = context.engine.payments.mechagramRefreshLocalGiftStatus().startStandalone()
+                        picker?.dismiss()
+                        controller?.dismiss(animated: true)
+                    })
+                }
+                controller.push(picker)
+                return
+            }
             guard let arguments = self.subject.arguments, let controller = self.getController() as? GiftViewScreen, case let .unique(gift) = arguments.gift, let reference = arguments.reference, let transferStars = arguments.transferStars else {
                 return
             }
@@ -1237,7 +1251,25 @@ private final class GiftViewSheetContent: CombinedComponent {
         }
         
         func resellGift(update: Bool = false) {
-            guard !self.subject.mechagramIsLocal else { return }
+            if self.subject.mechagramIsLocal {
+                guard case let .unique(gift) = self.subject.arguments?.gift, case let .peerId(owner) = gift.owner, owner == self.context.account.peerId, let controller = self.getController() as? GiftViewScreen else { return }
+                let apply: (CurrencyAmount?) -> Void = { [weak self] price in
+                    guard let self, let updated = mechagramUpdateLocalGift(accountId: self.context.account.peerId, giftId: gift.id, resalePrice: price) else { return }
+                    if case let .profileGift(peerId, entry) = self.subject {
+                        self.subject = .profileGift(peerId, entry.withGift(.unique(updated)))
+                    }
+                    self.updated(transition: .spring(duration: 0.3))
+                }
+                if !(gift.resellAmounts ?? []).isEmpty && !update { apply(nil); return }
+                weak var saleScreen: ViewController?
+                let screen = self.context.sharedContext.makeStarGiftResellScreen(context: self.context, gift: gift, update: update, completion: { price in
+                    apply(price)
+                    saleScreen?.dismiss()
+                })
+                saleScreen = screen
+                controller.push(screen)
+                return
+            }
             guard let arguments = self.subject.arguments, case let .unique(gift) = arguments.gift, let controller = self.getController() as? GiftViewScreen else {
                 return
             }
@@ -1694,6 +1726,11 @@ private final class GiftViewSheetContent: CombinedComponent {
             self.pendingTakeOff = false
             self.inWearPreview = false
             self.updated(transition: .spring(duration: 0.4))
+            if self.subject.mechagramIsLocal {
+                mechagramSetLocalGiftWorn(peerId: self.context.account.peerId, giftId: uniqueGift.id)
+                let _ = self.context.engine.payments.mechagramRefreshLocalGiftStatus().startStandalone()
+                return
+            }
             
             if let arguments = self.subject.arguments, let peerId = arguments.peerId, peerId.namespace == Namespaces.Peer.CloudChannel {
                 let _ = self.context.engine.peers.updatePeerStarGiftStatus(peerId: peerId, starGift: uniqueGift, expirationDate: nil).startStandalone()
@@ -1708,6 +1745,11 @@ private final class GiftViewSheetContent: CombinedComponent {
             self.pendingTakeOff = true
             self.pendingWear = false
             self.updated(transition: .spring(duration: 0.4))
+            if self.subject.mechagramIsLocal {
+                mechagramSetLocalGiftWorn(peerId: self.context.account.peerId, giftId: nil)
+                let _ = self.context.engine.payments.mechagramRefreshLocalGiftStatus().startStandalone()
+                return
+            }
             
             if let arguments = self.subject.arguments, let peerId = arguments.peerId, peerId.namespace == Namespaces.Peer.CloudChannel {
                 let _ = self.context.engine.peers.updatePeerEmojiStatus(peerId: peerId, fileId: nil, expirationDate: nil).startStandalone()
@@ -1810,6 +1852,7 @@ private final class GiftViewSheetContent: CombinedComponent {
         }
         
         func commitBuy(acceptedPrice: CurrencyAmount? = nil, skipConfirmation: Bool = false) {
+            if self.subject.mechagramIsLocal && (!UserDefaults.standard.bool(forKey: "mechagram.visualBalances") || !UserDefaults.standard.bool(forKey: "mechagram.visualGifts")) { return }
             guard case let .unique(uniqueGift) = self.subject.arguments?.gift, let controller = self.getController() as? GiftViewScreen else {
                 return
             }
@@ -1833,7 +1876,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                 return
             }
             
-            guard let _ = self.buyForm else {
+            guard self.subject.mechagramIsLocal || self.buyForm != nil else {
                 let alertController = textAlertController(
                     context: context,
                     title: nil,
@@ -3713,6 +3756,9 @@ private final class GiftViewSheetContent: CombinedComponent {
                 var tableItems: [TableComponent.Item] = []
                 
                 var isWearing = state.pendingWear
+                if subject.mechagramIsLocal, let uniqueGift {
+                    isWearing = !state.pendingTakeOff && mechagramLocalGiftIsWorn(peerId: component.context.account.peerId, giftId: uniqueGift.id)
+                }
                 
                 if !soldOut {
                     if let uniqueGift {
@@ -3944,7 +3990,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                 }
                 
                 if let uniqueGift {
-                    if (isMyOwnedUniqueGift || isMyHostedUniqueGift || isChannelGift) && !subject.mechagramIsLocal {
+                    if isMyOwnedUniqueGift || isMyHostedUniqueGift || isChannelGift {
                         var canTransfer = true
                         var canResell = true
                         
@@ -3953,7 +3999,7 @@ private final class GiftViewSheetContent: CombinedComponent {
                                 canTransfer = false
                             }
                             canResell = false
-                        } else if subject.arguments?.transferStars == nil {
+                        } else if subject.arguments?.transferStars == nil && !subject.mechagramIsLocal {
                             canTransfer = false
                         }
                         
@@ -4013,6 +4059,10 @@ private final class GiftViewSheetContent: CombinedComponent {
                                             
                                             state.showAttributeInfo(tag: state.statusTag, text: strings.Gift_View_TookOff("\(uniqueGift.title) #\(formatCollectibleNumber(uniqueGift.number, dateTimeFormat: environment.dateTimeFormat))").string)
                                         } else {
+                                            if subject.mechagramIsLocal {
+                                                state.commitWear(uniqueGift)
+                                                return
+                                            }
                                             if let controller = controller() as? GiftViewScreen {
                                                 controller.dismissAllTooltips()
                                             }

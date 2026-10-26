@@ -54,6 +54,7 @@ final class PeerInfoScreenDisclosureItem: PeerInfoScreenItem {
     let iconSignal: Signal<UIImage?, NoError>?
     let hasArrow: Bool
     let action: (() -> Void)?
+    var longPressAction: (() -> Void)?
     
     init(id: AnyHashable, label: Label = .none, additionalBadgeLabel: String? = nil, additionalBadgeIcon: UIImage? = nil, text: String, icon: UIImage? = nil, iconSignal: Signal<UIImage?, NoError>? = nil, hasArrow: Bool = true, action: (() -> Void)?) {
         self.id = id
@@ -73,6 +74,18 @@ final class PeerInfoScreenDisclosureItem: PeerInfoScreenItem {
 }
 
 private final class PeerInfoScreenDisclosureItemNode: PeerInfoScreenItemNode {
+    private var mechagramLongPressRecognizer: UILongPressGestureRecognizer?
+    override func didLoad() {
+        super.didLoad()
+        let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(self.mechagramLongPress(_:)))
+        recognizer.isEnabled = self.item?.longPressAction != nil
+        self.mechagramLongPressRecognizer = recognizer
+        self.view.addGestureRecognizer(recognizer)
+    }
+
+    @objc private func mechagramLongPress(_ gesture: UILongPressGestureRecognizer) {
+        if gesture.state == .began { self.item?.longPressAction?() }
+    }
     private let selectionNode: PeerInfoScreenSelectableBackgroundNode
     private let maskNode: ASImageNode
     private let iconNode: ASImageNode
@@ -152,6 +165,7 @@ private final class PeerInfoScreenDisclosureItemNode: PeerInfoScreenItemNode {
         self.item = item
         
         self.selectionNode.pressed = item.action
+        self.mechagramLongPressRecognizer?.isEnabled = item.longPressAction != nil
         
         let sideInset: CGFloat = 16.0 + safeInsets.left
         let leftInset = (item.icon == nil && item.iconSignal == nil ? sideInset : sideInset + 29.0 + 16.0)

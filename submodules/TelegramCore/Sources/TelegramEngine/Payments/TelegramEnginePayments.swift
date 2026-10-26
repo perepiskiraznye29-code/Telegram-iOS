@@ -19,9 +19,51 @@ public extension TelegramEngine {
             self.account = account
         }
 
+        public func mechagramRefreshLocalGiftStatus() -> Signal<Never, NoError> {
+            return self.account.postbox.transaction { transaction -> Void in
+                let peerId = self.account.peerId
+                guard let user = transaction.getPeer(peerId) as? TelegramUser else { return }
+                let updated: TelegramUser
+                if mechagramLocalWearStatus(peerId: peerId) != nil {
+                    let entries = mechagramReadProfileGifts(accountId: peerId, peerId: peerId)
+                    for entry in entries {
+                        if case let .unique(gift) = entry.gift, mechagramLocalGiftIsWorn(peerId: peerId, giftId: gift.id) {
+                            for attribute in gift.attributes {
+                                switch attribute {
+                                case let .model(_, file, _, _), let .pattern(_, file, _): transaction.storeMediaIfNotPresent(media: file)
+                                default: break
+                                }
+                            }
+                        }
+                    }
+                    updated = mechagramOverlayLocalWear(user)
+                } else {
+                    let overlayKey = "mechagram.giftStatusOverlaid.v1.\(peerId.toInt64())"
+                    guard UserDefaults.standard.bool(forKey: overlayKey) else { return }
+                    let key = "mechagram.originalGiftStatus.v1.\(peerId.toInt64())"
+                    let original = UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(PeerEmojiStatus.self, from: $0) }
+                    updated = user.withUpdatedEmojiStatus(original)
+                    UserDefaults.standard.removeObject(forKey: key)
+                    UserDefaults.standard.removeObject(forKey: overlayKey)
+                }
+                updatePeersCustom(transaction: transaction, peers: [updated], update: { _, value in value })
+            } |> ignoreValues
+        }
+
+        public func mechagramTransferLocalGift(giftId: Int64, recipientId: EnginePeer.Id) -> Signal<Bool, NoError> {
+            return self.account.postbox.transaction { transaction -> Bool in
+                guard let gift = mechagramUpdateLocalGift(accountId: self.account.peerId, giftId: giftId, recipientId: recipientId) else { return false }
+                let action = TelegramMediaAction(action: .starGiftUnique(gift: .unique(gift), isUpgrade: false, isTransferred: true, savedToProfile: true, canExportDate: nil, transferStars: nil, isRefunded: false, isPrepaidUpgrade: false, peerId: nil, senderId: nil, savedId: nil, resaleAmount: nil, canTransferDate: nil, canResaleDate: nil, dropOriginalDetailsStars: nil, assigned: false, fromOffer: false, canCraftAt: nil, isCrafted: false))
+                let message = StoreMessage(id: .Partial(recipientId, Namespaces.Message.Local), customStableId: nil, globallyUniqueId: Int64.random(in: 1 ... Int64.max), groupingKey: nil, threadId: nil, timestamp: Int32(Date().timeIntervalSince1970), flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: self.account.peerId, text: "mechagram:local-gift:v2", attributes: [], media: [action])
+                let _ = transaction.addMessages([message], location: .UpperHistoryBlock)
+                return true
+            }
+        }
+
         // Local preview only: no outgoing queue, payment form or network request.
         public func mechagramSimulateGift(peerId: EnginePeer.Id, gift: StarGift, price: CurrencyAmount) -> Signal<Bool, NoError> {
             return self.account.postbox.transaction { transaction -> Bool in
+                return mechagramWithProfileGiftLock {
                 let settings = UserDefaults.standard
                 guard settings.bool(forKey: "mechagram.visualBalances"), settings.bool(forKey: "mechagram.visualGifts"), peerId.namespace == Namespaces.Peer.CloudUser else {
                     return false
@@ -39,6 +81,9 @@ public extension TelegramEngine {
                     action = TelegramMediaAction(action: .starGiftUnique(gift: gift, isUpgrade: false, isTransferred: true, savedToProfile: true, canExportDate: nil, transferStars: nil, isRefunded: false, isPrepaidUpgrade: false, peerId: nil, senderId: nil, savedId: nil, resaleAmount: nil, canTransferDate: nil, canResaleDate: nil, dropOriginalDetailsStars: nil, assigned: false, fromOffer: false, canCraftAt: nil, isCrafted: false))
                 }
                 var profileGifts = mechagramReadProfileGifts(accountId: self.account.peerId, peerId: peerId)
+                if case let .unique(value) = gift {
+                    profileGifts.removeAll { if case let .unique(other) = $0.gift { return other.id == value.id }; return false }
+                }
                 profileGifts.insert(ProfileGiftsContext.State.StarGift(
                     gift: gift, reference: nil,
                     fromPeer: transaction.getPeer(self.account.peerId).map(EnginePeer.init),
@@ -50,6 +95,7 @@ public extension TelegramEngine {
                     isRefunded: false, canCraftAt: nil
                 ), at: 0)
                 guard mechagramStoreProfileGifts(profileGifts, accountId: self.account.peerId, peerId: peerId) else { return false }
+                if case let .unique(value) = gift { mechagramRemoveOtherLocalOwners(giftId: value.id, recipientId: peerId) }
                 let message = StoreMessage(id: .Partial(peerId, Namespaces.Message.Local), customStableId: nil, globallyUniqueId: Int64.random(in: 1 ... Int64.max), groupingKey: nil, threadId: nil, timestamp: Int32(Date().timeIntervalSince1970), flags: [], tags: [], globalTags: [], localTags: [], forwardInfo: nil, authorId: self.account.peerId, text: marker, attributes: [], media: [action])
                 let _ = transaction.addMessages([message], location: .UpperHistoryBlock)
                 settings.set(remaining, forKey: key)
@@ -58,6 +104,7 @@ public extension TelegramEngine {
                 }
                 NotificationCenter.default.post(name: Notification.Name("MechagramLocalProfileGiftsChanged"), object: nil)
                 return true
+                }
             }
         }
         

@@ -1,0 +1,29 @@
+[Unit]
+Description=Mechagram visual gift ledger
+After=network.target
+
+[Service]
+User=mechagram
+Group=mechagram
+WorkingDirectory=/opt/mechagram
+Environment=MECHAGRAM_DB=/var/lib/mechagram/ledger.sqlite3
+Environment=MECHAGRAM_CERT=/etc/mechagram/tls.crt
+Environment=MECHAGRAM_KEY=/etc/mechagram/tls.key
+ExecStart=/usr/bin/python3 /opt/mechagram/server.py
+Restart=on-failure
+RestartSec=5
+StateDirectory=mechagram
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/mechagram
+MemoryMax=128M
+CPUQuota=25%
+TasksMax=32
+LimitNOFILE=256
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -90,17 +90,152 @@ private func mechagramProfileGiftsKey(accountId: PeerId, peerId: PeerId) -> Stri
     return "mechagram.profileGifts.v1.\(accountId.toInt64()).\(peerId.toInt64())"
 }
 
+private let mechagramProfileLock = NSRecursiveLock()
+
+func mechagramWithProfileGiftLock<T>(_ action: () -> T) -> T {
+    mechagramProfileLock.lock()
+    defer { mechagramProfileLock.unlock() }
+    return action()
+}
+
+func mechagramRemoveOtherLocalOwners(giftId: Int64, recipientId: PeerId) {
+    for (key, value) in UserDefaults.standard.dictionaryRepresentation() where key.hasPrefix("mechagram.sharedProfileGifts.v2.") && key != mechagramSharedProfileKey(recipientId) {
+        guard let data = value as? Data, var entries = try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: data) else { continue }
+        let oldCount = entries.count
+        entries.removeAll { if case let .unique(gift) = $0.gift { return gift.id == giftId }; return false }
+        if entries.count != oldCount, let encoded = try? JSONEncoder().encode(entries) {
+            UserDefaults.standard.set(encoded, forKey: key)
+            let peerValue = String(key.dropFirst("mechagram.sharedProfileGifts.v2.".count))
+            UserDefaults.standard.removeObject(forKey: "mechagram.giftSync.cache.v1.\(peerValue)")
+            if UserDefaults.standard.string(forKey: "mechagram.wornGift.v1.\(peerValue)") == String(giftId) { UserDefaults.standard.set("", forKey: "mechagram.wornGift.v1.\(peerValue)") }
+        }
+    }
+}
+
+private func mechagramSharedProfileKey(_ peerId: PeerId) -> String {
+    return "mechagram.sharedProfileGifts.v2.\(peerId.toInt64())"
+}
+
 func mechagramReadProfileGifts(accountId: PeerId, peerId: PeerId) -> [ProfileGiftsContext.State.StarGift] {
-    guard let data = UserDefaults.standard.data(forKey: mechagramProfileGiftsKey(accountId: accountId, peerId: peerId)) else { return [] }
-    let gifts = (try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: data)) ?? []
-    // Apply to existing v1 entries as well; server gifts never pass through this store.
-    return gifts.map { $0.withGift(mechagramGiftForRecipient($0.gift, peerId: peerId)) }
+    mechagramProfileLock.lock()
+    defer { mechagramProfileLock.unlock() }
+    let defaults = UserDefaults.standard
+    let key = mechagramSharedProfileKey(peerId)
+    var result = defaults.data(forKey: key).flatMap { try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: $0) } ?? []
+    // Import every account's old entries once, including accounts not currently active.
+    // Remove imported keys so a later transfer cannot resurrect the old owner entry.
+    for (oldKey, value) in defaults.dictionaryRepresentation() where oldKey.hasPrefix("mechagram.profileGifts.v1.") && oldKey.hasSuffix(".\(peerId.toInt64())") {
+        guard let data = value as? Data, let gifts = try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: data) else { continue }
+        for entry in gifts {
+            if case let .unique(gift) = entry.gift, result.contains(where: { if case let .unique(other) = $0.gift { return other.id == gift.id }; return false }) { continue }
+            result.append(entry.withGift(mechagramGiftForRecipient(entry.gift, peerId: peerId)))
+        }
+        guard let encoded = try? JSONEncoder().encode(result) else { continue }
+        defaults.set(encoded, forKey: key)
+        defaults.removeObject(forKey: oldKey)
+    }
+    MechagramGiftSync.shared.bootstrap(result, peerId: peerId)
+    let moved = Set(defaults.stringArray(forKey: "mechagram.giftSync.moved.v1.\(peerId.toInt64())") ?? [])
+    let pending = defaults.dictionary(forKey: "mechagram.giftSync.outbox.v1") ?? [:]
+    result.removeAll { entry in
+        if case let .unique(gift) = entry.gift { return moved.contains(String(gift.id)) && pending[String(gift.id)] == nil }
+        return false
+    }
+    if let cached = defaults.data(forKey: "mechagram.giftSync.cache.v1.\(peerId.toInt64())"), let remote = try? JSONDecoder().decode([ProfileGiftsContext.State.StarGift].self, from: cached) {
+        for entry in remote {
+            if case let .unique(gift) = entry.gift {
+                if let index = result.firstIndex(where: { if case let .unique(value) = $0.gift { return value.id == gift.id }; return false }) {
+                    if pending[String(gift.id)] == nil { result[index] = result[index].withGift(entry.gift) }
+                } else { result.append(entry) }
+            }
+        }
+    }
+    return result
 }
 
 func mechagramStoreProfileGifts(_ gifts: [ProfileGiftsContext.State.StarGift], accountId: PeerId, peerId: PeerId) -> Bool {
+    mechagramProfileLock.lock()
+    defer { mechagramProfileLock.unlock() }
     guard let data = try? JSONEncoder().encode(gifts) else { return false }
-    UserDefaults.standard.set(data, forKey: mechagramProfileGiftsKey(accountId: accountId, peerId: peerId))
+    UserDefaults.standard.set(data, forKey: mechagramSharedProfileKey(peerId))
+    MechagramGiftSync.shared.publish(gifts, peerId: peerId)
     return true
+}
+
+public func mechagramLocalGiftIsWorn(peerId: PeerId, giftId: Int64) -> Bool {
+    return mechagramWornGiftId(peerId: peerId) == String(giftId)
+}
+
+private func mechagramWornGiftId(peerId: PeerId) -> String? {
+    return UserDefaults.standard.string(forKey: "mechagram.wornGift.v1.\(peerId.toInt64())") ?? UserDefaults.standard.string(forKey: "mechagram.giftSync.worn.v1.\(peerId.toInt64())")
+}
+
+public func mechagramSetLocalGiftWorn(peerId: PeerId, giftId: Int64?) {
+    let key = "mechagram.wornGift.v1.\(peerId.toInt64())"
+    if let giftId { UserDefaults.standard.set(String(giftId), forKey: key) }
+    else { UserDefaults.standard.set("", forKey: key) }
+    MechagramGiftSync.shared.publish(mechagramReadProfileGifts(accountId: peerId, peerId: peerId), peerId: peerId)
+    NotificationCenter.default.post(name: Notification.Name("MechagramLocalProfileGiftsChanged"), object: nil)
+}
+
+func mechagramLocalWearStatus(peerId: PeerId) -> PeerEmojiStatus? {
+    guard let id = mechagramWornGiftId(peerId: peerId), !id.isEmpty, let entry = mechagramReadProfileGifts(accountId: peerId, peerId: peerId).first(where: { if case let .unique(value) = $0.gift { return String(value.id) == id }; return false }), case let .unique(gift) = entry.gift else { return nil }
+    var fileId: Int64?
+    var patternId: Int64?
+    var colors: (Int32, Int32, Int32, Int32)?
+    for attribute in gift.attributes {
+        switch attribute {
+        case let .model(_, file, _, _): fileId = file.fileId.id
+        case let .pattern(_, file, _): patternId = file.fileId.id
+        case let .backdrop(_, _, inner, outer, pattern, text, _): colors = (inner, outer, pattern, text)
+        default: break
+        }
+    }
+    guard let fileId, let patternId, let colors else { return nil }
+    return PeerEmojiStatus(content: .starGift(id: gift.id, fileId: fileId, title: gift.title, slug: gift.slug, patternFileId: patternId, innerColor: colors.0, outerColor: colors.1, patternColor: colors.2, textColor: colors.3), expirationDate: nil)
+}
+
+func mechagramOverlayLocalWear(_ user: TelegramUser) -> TelegramUser {
+    guard let status = mechagramLocalWearStatus(peerId: user.id) else { return user }
+    UserDefaults.standard.set(true, forKey: "mechagram.giftStatusOverlaid.v1.\(user.id.toInt64())")
+    if user.emojiStatus != status {
+        let key = "mechagram.originalGiftStatus.v1.\(user.id.toInt64())"
+        if let original = user.emojiStatus, let data = try? JSONEncoder().encode(original) { UserDefaults.standard.set(data, forKey: key) }
+        else { UserDefaults.standard.removeObject(forKey: key) }
+    }
+    return user.withUpdatedEmojiStatus(status)
+}
+
+// Authorized mutations only apply to copies owned by the currently signed-in account.
+public func mechagramUpdateLocalGift(accountId: PeerId, giftId: Int64, recipientId: PeerId? = nil, resalePrice: CurrencyAmount? = nil) -> StarGift.UniqueGift? {
+    mechagramProfileLock.lock()
+    defer { mechagramProfileLock.unlock() }
+    guard recipientId == nil || (recipientId != accountId && recipientId?.namespace == Namespaces.Peer.CloudUser) else { return nil }
+    var entries = mechagramReadProfileGifts(accountId: accountId, peerId: accountId)
+    guard let index = entries.firstIndex(where: { if case let .unique(gift) = $0.gift { return gift.id == giftId }; return false }), case let .unique(gift) = entries[index].gift else { return nil }
+    let updated: StarGift.UniqueGift
+    if let recipientId {
+        guard case let .unique(value) = mechagramGiftForRecipient(.unique(gift), peerId: recipientId) else { return nil }
+        updated = value
+        var target = mechagramReadProfileGifts(accountId: accountId, peerId: recipientId)
+        target.removeAll { if case let .unique(value) = $0.gift { return value.id == giftId }; return false }
+        target.insert(entries[index].withGift(.unique(updated)).withSavedToProfile(true), at: 0)
+        guard let sourceData = try? JSONEncoder().encode(entries.enumerated().filter { $0.offset != index }.map { $0.element }), let targetData = try? JSONEncoder().encode(target) else { return nil }
+        UserDefaults.standard.set(targetData, forKey: mechagramSharedProfileKey(recipientId))
+        UserDefaults.standard.set(sourceData, forKey: mechagramSharedProfileKey(accountId))
+        MechagramGiftSync.shared.publish(target, peerId: recipientId)
+        // Drop stale cached entries for both profiles while the transfer uploads.
+        UserDefaults.standard.removeObject(forKey: "mechagram.giftSync.cache.v1.\(accountId.toInt64())")
+        UserDefaults.standard.removeObject(forKey: "mechagram.giftSync.cache.v1.\(recipientId.toInt64())")
+        if mechagramLocalGiftIsWorn(peerId: accountId, giftId: giftId) { mechagramSetLocalGiftWorn(peerId: accountId, giftId: nil) }
+    } else {
+        if let resalePrice, resalePrice.amount.value <= 0 { return nil }
+        updated = gift.withResellAmounts(resalePrice.map { [$0] }).withResellForTonOnly(resalePrice?.currency == .ton)
+        entries[index] = entries[index].withGift(.unique(updated))
+        guard mechagramStoreProfileGifts(entries, accountId: accountId, peerId: accountId) else { return nil }
+    }
+    NotificationCenter.default.post(name: Notification.Name("MechagramLocalProfileGiftsChanged"), object: nil)
+    return updated
 }
 
 public func mechagramHasLocalProfileGifts(accountId: PeerId, peerId: PeerId) -> Bool {
@@ -1978,6 +2113,7 @@ private final class ProfileGiftsContextImpl {
     private let cacheDisposable = MetaDisposable()
     private let actionDisposable = MetaDisposable()
     private var localGiftsObserver: NSObjectProtocol?
+    private var localSyncTimer: SwiftSignalKit.Timer?
     
     private var sorting: ProfileGiftsContext.Sorting
     private var filter: ProfileGiftsContext.Filters
@@ -2022,12 +2158,16 @@ private final class ProfileGiftsContextImpl {
                 self?.pushState()
             }
         }
+        MechagramGiftSync.shared.refresh(peerId: peerId)
+        self.localSyncTimer = SwiftSignalKit.Timer(timeout: 15.0, repeat: true, completion: { MechagramGiftSync.shared.refresh(peerId: peerId) }, queue: queue)
+        self.localSyncTimer?.start()
         self.pushState()
         self.loadMore()
     }
     
     deinit {
         if let localGiftsObserver = self.localGiftsObserver { NotificationCenter.default.removeObserver(localGiftsObserver) }
+        self.localSyncTimer?.invalidate()
         self.disposable.dispose()
         self.cacheDisposable.dispose()
         self.actionDisposable.dispose()

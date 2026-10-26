@@ -304,6 +304,9 @@ public func updatePeersCustom(transaction: Transaction, peers: [Peer], update: (
         if let previous = previous as? TelegramUser, let updatedUser = updated as? TelegramUser {
             updated = TelegramUser.merge(lhs: previous, rhs: updatedUser)
         }
+        if let user = updated as? TelegramUser {
+            updated = mechagramOverlayLocalWear(user)
+        }
         
         if let updatedChannel = updated as? TelegramChannel {
             var wasMember = false
