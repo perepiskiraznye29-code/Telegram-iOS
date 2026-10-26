@@ -12,9 +12,12 @@ private final class MechagramPinnedGiftSession: NSObject, URLSessionDelegate, UR
         guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
               challenge.protectionSpace.host == "31.77.11.54",
               let trust = challenge.protectionSpace.serverTrust,
-              let certificates = SecTrustCopyCertificateChain(trust) as? [SecCertificate],
-              let leaf = certificates.first,
-              SecCertificateCopyData(leaf) as Data == Data(base64Encoded: Self.certificate) else {
+              let data = Data(base64Encoded: Self.certificate),
+              let pinned = SecCertificateCreateWithData(nil, data as CFData),
+              SecTrustSetAnchorCertificates(trust, [pinned] as CFArray) == errSecSuccess,
+              SecTrustSetAnchorCertificatesOnly(trust, true) == errSecSuccess,
+              SecTrustSetPolicies(trust, SecPolicyCreateSSL(true, "31.77.11.54" as CFString)) == errSecSuccess,
+              SecTrustEvaluateWithError(trust, nil) else {
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
